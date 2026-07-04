@@ -1,0 +1,51 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 1 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Fetch latest stock data
+        run: |
+          pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+          python fetch_smic.py
+
+      - name: Prepare site
+        run: |
+          cp dashboard.html index.html
+          mkdir -p _site
+          cp index.html _site/
+          cp -r data _site/
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
