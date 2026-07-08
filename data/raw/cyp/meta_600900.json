@@ -1,0 +1,18 @@
+{
+  "stock_id": "cyp",
+  "name": "长江电力",
+  "code": "600900",
+  "ts_code": "600900.SH",
+  "industry": "公用事业",
+  "rows": 242,
+  "start_date": "2025-07-04",
+  "end_date": "2026-07-03",
+  "adjust": "qfq",
+  "source": {
+    "provider": "akshare",
+    "interface": "stock_zh_a_daily",
+    "doc": "https://akshare.akfamily.xyz/data/stock/stock.html"
+  },
+  "fetched_at": "2026-07-04 14:57:48",
+  "spec_version": "1.0.0"
+}

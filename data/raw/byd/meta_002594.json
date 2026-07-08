@@ -1,0 +1,18 @@
+{
+  "stock_id": "byd",
+  "name": "比亚迪",
+  "code": "002594",
+  "ts_code": "002594.SZ",
+  "industry": "汽车",
+  "rows": 242,
+  "start_date": "2025-07-04",
+  "end_date": "2026-07-03",
+  "adjust": "qfq",
+  "source": {
+    "provider": "akshare",
+    "interface": "stock_zh_a_daily",
+    "doc": "https://akshare.akfamily.xyz/data/stock/stock.html"
+  },
+  "fetched_at": "2026-07-04 14:57:47",
+  "spec_version": "1.0.0"
+}

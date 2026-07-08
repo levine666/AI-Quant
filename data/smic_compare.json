@@ -1,7 +1,7 @@
 {
   "meta": {
     "name": "中芯国际",
-    "updated_at": "2026-07-08 09:45:30"
+    "updated_at": "2026-07-08 11:01:10"
   },
   "a_share": {
     "meta": {
@@ -14,7 +14,7 @@
       "start_date": "2025-07-08",
       "end_date": "2026-07-08",
       "rows": 237,
-      "updated_at": "2026-07-08 09:45:30",
+      "updated_at": "2026-07-08 11:01:10",
       "source": "akshare (stock_zh_a_daily, qfq)"
     },
     "data": [
@@ -2638,7 +2638,7 @@
       "start_date": "2025-07-09",
       "end_date": "2026-07-07",
       "rows": 244,
-      "updated_at": "2026-07-08 09:45:30",
+      "updated_at": "2026-07-08 11:01:10",
       "source": "akshare (stock_hk_daily, qfq)"
     },
     "data": [
