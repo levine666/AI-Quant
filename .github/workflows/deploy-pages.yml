@@ -26,7 +26,7 @@ jobs:
 
       - name: Fetch latest stock data
         run: |
-          pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+          pip install "akshare>=1.18.0" "pandas>=2.0.0"
           python fetch_smic.py
 
       - name: Sync indicator-lab data
