@@ -29,6 +29,9 @@ jobs:
           pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
           python fetch_smic.py
 
+      - name: Sync indicator-lab data
+        run: python AI-Quant/scripts/sync_data.py
+
       - name: Prepare site
         run: |
           cp dashboard.html index.html
@@ -36,6 +39,7 @@ jobs:
           cp index.html _site/
           cp .nojekyll _site/
           cp -r data _site/
+          cp -r AI-Quant/indicator-lab _site/indicator-lab
 
       - name: Deploy to gh-pages branch
         uses: peaceiris/actions-gh-pages@v4

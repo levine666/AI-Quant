@@ -1,0 +1,15 @@
+{
+  "folders": [
+    {
+      "name": "AI Quant",
+      "path": "."
+    }
+  ],
+  "settings": {
+    "files.exclude": {
+      "**/__pycache__": true,
+      "**/.DS_Store": true,
+      "**/.ipynb_checkpoints": true
+    }
+  }
+}

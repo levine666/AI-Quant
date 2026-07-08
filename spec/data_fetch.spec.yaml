@@ -1,0 +1,255 @@
+# =============================================================================
+# 沪深 A 股日线数据取数规范 (Data Fetch Specification)
+# =============================================================================
+# 版本: 1.0.0
+# 用途: 定义股票池、数据源、字段、输出格式与命名规则，供 fetch_from_spec.py 执行
+# 数据源: AkShare (https://akshare.akfamily.xyz/)
+# =============================================================================
+
+spec:
+  name: ai-quant-daily-fetch
+  version: "1.0.0"
+  updated_at: "2026-07-04"
+  maintainer: 张利伟
+
+# -----------------------------------------------------------------------------
+# 一、工作流阶段（规划步骤）
+# -----------------------------------------------------------------------------
+workflow:
+  phases:
+    - id: P1_define_universe
+      name: 定义股票池
+      description: 在 stocks 节点登记标的代码、市场、行业标签与 AkShare symbol
+      outputs: []
+      checklist:
+        - 确认 ts_code / akshare_symbol 正确
+        - 确认 adjust 复权方式（qfq/hfq/空）
+        - 标注行业分类便于后续对比
+
+    - id: P2_configure_fetch
+      name: 配置取数参数
+      description: 设定时间窗口、数据源接口、重试策略与字段映射
+      outputs: []
+      checklist:
+        - 检查 lookback_days 是否满足分析需求
+        - 确认 primary_source 可用（网络/接口稳定性）
+        - 设置 rate_limit 避免被封
+
+    - id: P3_execute_fetch
+      name: 执行取数
+      description: 运行 fetch_from_spec.py，按 spec 批量拉取并落盘
+      command: python fetch_from_spec.py
+      outputs:
+        - data/raw/{stock_id}/daily.csv
+        - data/raw/{stock_id}/meta.json
+
+    - id: P4_validate
+      name: 数据校验
+      description: 检查行数、日期连续性、空值率、价格合理性
+      command: python fetch_from_spec.py --validate-only
+      outputs:
+        - data/reports/validation_{date}.json
+
+    - id: P5_visualize
+      name: 可视化与报告
+      description: 生成收盘价曲线、K 线图，更新 Notebook / 看板
+      outputs:
+        - figures/{stock_id}_close.png
+        - figures/{stock_id}_kline.png
+
+    - id: P6_archive
+      name: 归档与版本管理
+      description: 提交 CSV 与 meta，记录 fetched_at 便于复现
+      outputs:
+        - git commit / 作业目录备份
+
+# -----------------------------------------------------------------------------
+# 二、全局默认配置
+# -----------------------------------------------------------------------------
+defaults:
+  market: A股
+  currency: CNY
+  price_unit: 元
+
+  # 时间范围：近 N 个自然日（实际返回为区间内交易日）
+  lookback_days: 365
+
+  # 复权: qfq=前复权, hfq=后复权, none=不复权
+  adjust: qfq
+
+  # 主数据源
+  primary_source:
+    provider: akshare
+    interface: stock_zh_a_daily
+    doc: https://akshare.akfamily.xyz/data/stock/stock.html
+
+  # 请求策略
+  retry:
+    max_attempts: 3
+    delay_seconds: 2
+
+  # 输出
+  output:
+    base_dir: data/raw
+    encoding: utf-8-sig
+    date_format: "%Y-%m-%d"
+    formats:
+      - csv
+      - json   # meta + 摘要统计
+
+# -----------------------------------------------------------------------------
+# 三、标准字段定义（输出 CSV 列）
+# -----------------------------------------------------------------------------
+schema:
+  daily_ohlcv:
+    description: 日线行情标准字段
+    columns:
+      - name: stock_id
+        type: string
+        description: 规范内部 ID，如 smic / byd / cyp
+      - name: name
+        type: string
+        description: 中文简称
+      - name: code
+        type: string
+        description: 6 位证券代码
+      - name: date
+        type: date
+        description: 交易日期 YYYY-MM-DD
+      - name: open
+        type: float
+        description: 开盘价
+      - name: high
+        type: float
+        description: 最高价
+      - name: low
+        type: float
+        description: 最低价
+      - name: close
+        type: float
+        description: 收盘价
+      - name: volume
+        type: float
+        description: 成交量（股）
+      - name: amount
+        type: float
+        description: 成交额（元）
+      - name: turnover
+        type: float
+        description: 换手率（若源数据提供）
+        required: false
+      - name: adjust
+        type: string
+        description: 复权方式
+      - name: source
+        type: string
+        description: 数据来源接口
+
+# -----------------------------------------------------------------------------
+# 四、文件命名规范
+# -----------------------------------------------------------------------------
+naming:
+  # 目录: data/raw/{stock_id}/
+  directory: "{base_dir}/{stock_id}/"
+  # 日线 CSV: daily_{code}_{adjust}.csv
+  daily_csv: "daily_{code}_{adjust}.csv"
+  # 元数据: meta_{code}.json
+  meta_json: "meta_{code}.json"
+  # 图表: figures/{stock_id}_close.png
+  figure_close: "figures/{stock_id}_close.png"
+  figure_kline: "figures/{stock_id}_kline.png"
+
+# -----------------------------------------------------------------------------
+# 五、数据质量校验规则
+# -----------------------------------------------------------------------------
+validation:
+  min_rows: 200          # 近一年至少约 200 个交易日
+  max_null_ratio: 0.01   # 核心字段空值率上限 1%
+  required_columns:
+    - date
+    - open
+    - high
+    - low
+    - close
+    - volume
+  price_rules:
+    - rule: high >= low
+    - rule: high >= open
+    - rule: high >= close
+    - rule: low <= open
+    - rule: low <= close
+    - rule: close > 0
+
+# -----------------------------------------------------------------------------
+# 六、股票池（三个典型标的）
+# -----------------------------------------------------------------------------
+stocks:
+  - stock_id: smic
+    name: 中芯国际
+    code: "688981"
+    exchange: SSE          # 上交所
+    board: 科创板
+    akshare_symbol: sh688981
+    ts_code: "688981.SH"
+    industry: 半导体
+    tags: [科技, 硬科技, AH股]
+    notes: 中国大陆晶圆代工龙头；另有港股 00981（扩展任务可单独配置）
+    dual_listed:
+      hk_code: "00981"
+      hk_akshare_symbol: "00981"
+
+  - stock_id: byd
+    name: 比亚迪
+    code: "002594"
+    exchange: SZSE         # 深交所
+    board: 主板
+    akshare_symbol: sz002594
+    ts_code: "002594.SZ"
+    industry: 汽车
+    tags: [新能源, 电动车, 消费电子]
+    notes: 新能源汽车与动力电池龙头，代表制造业升级典型
+
+  - stock_id: cyp
+    name: 长江电力
+    code: "600900"
+    exchange: SSE
+    board: 主板
+    akshare_symbol: sh600900
+    ts_code: "600900.SH"
+    industry: 公用事业
+    tags: [水电, 高股息, 防御]
+    notes: 全球最大水电上市公司，代表稳定现金流与防御型资产
+
+# -----------------------------------------------------------------------------
+# 七、AkShare 接口映射（源字段 → 标准字段）
+# -----------------------------------------------------------------------------
+source_mapping:
+  stock_zh_a_daily:
+    date: date
+    open: open
+    high: high
+    low: low
+    close: close
+    volume: volume
+    amount: amount
+    turnover: turnover
+
+# -----------------------------------------------------------------------------
+# 八、扩展任务（可选，暂不默认执行）
+# -----------------------------------------------------------------------------
+extensions:
+  - id: ah_compare
+    description: 中芯国际 A/H 股对比（已实现于 fetch_smic.py）
+    enabled: false
+    stocks: [smic]
+
+  - id: index_benchmark
+    description: 拉取沪深300作为基准
+    enabled: false
+    benchmark:
+      name: 沪深300
+      akshare_symbol: sh000300
+
+  - id: tushare_backup
+    description: Tushare Pro 备用数据源（需 token）
+    enabled: false

@@ -1,0 +1,18 @@
+{
+  "stock_id": "smic",
+  "name": "中芯国际",
+  "code": "688981",
+  "ts_code": "688981.SH",
+  "industry": "半导体",
+  "rows": 236,
+  "start_date": "2025-07-04",
+  "end_date": "2026-07-03",
+  "adjust": "qfq",
+  "source": {
+    "provider": "akshare",
+    "interface": "stock_zh_a_daily",
+    "doc": "https://akshare.akfamily.xyz/data/stock/stock.html"
+  },
+  "fetched_at": "2026-07-04 14:57:46",
+  "spec_version": "1.0.0"
+}

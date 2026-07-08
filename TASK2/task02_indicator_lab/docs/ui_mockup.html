@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Indicator Lab — 界面设计参考稿 v0.1</title>
+  <style>
+    :root {
+      --bg: #0b0f17;
+      --sidebar: #0f1520;
+      --panel: #121826;
+      --border: #243049;
+      --text: #e8edf7;
+      --muted: #8b98b3;
+      --accent: #5b8def;
+      --up: #ef5350;
+      --down: #26a69a;
+      --rsi: #b388ff;
+      --atr: #00897b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 顶栏 */
+    .topbar {
+      height: 52px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      background: var(--panel);
+    }
+    .logo { font-size: 16px; font-weight: 700; }
+    .logo span { color: var(--accent); }
+    .topbar-meta { font-size: 12px; color: var(--muted); }
+    .btn {
+      background: rgba(91,141,239,.15);
+      border: 1px solid var(--accent);
+      color: var(--text);
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .btn-ghost { background: transparent; border-color: var(--border); color: var(--muted); }
+
+    /* 主体 */
+    .main { display: flex; flex: 1; min-height: 0; }
+
+    /* 侧边栏 */
+    .sidebar {
+      width: 280px;
+      background: var(--sidebar);
+      border-right: 1px solid var(--border);
+      padding: 16px;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    .section-title {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      margin-bottom: 8px;
+      margin-top: 16px;
+    }
+    .section-title:first-child { margin-top: 0; }
+    .field { margin-bottom: 12px; }
+    .field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    select, input[type=number] {
+      width: 100%;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    input[type=range] { width: 100%; accent-color: var(--accent); }
+    .range-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+    .range-val { color: var(--accent); font-weight: 600; }
+
+    /* 指标折叠 */
+    .accordion { border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; overflow: hidden; }
+    .acc-head {
+      padding: 10px 12px;
+      background: var(--panel);
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      cursor: pointer;
+    }
+    .acc-head .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .acc-body { padding: 12px; border-top: 1px solid var(--border); font-size: 12px; }
+    .hint { color: var(--muted); font-size: 11px; line-height: 1.5; margin-top: 8px; }
+    .sidebar-actions { display: flex; gap: 8px; margin-top: 16px; }
+    .sidebar-actions .btn { flex: 1; text-align: center; font-size: 12px; }
+    .toggle-row { display: flex; align-items: center; gap: 8px; font-size: 12px; margin-top: 10px; color: var(--muted); }
+
+    /* 内容区 */
+    .content { flex: 1; padding: 16px 20px; overflow-y: auto; }
+
+    .stock-banner {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+    .stock-banner strong { color: var(--text); font-size: 16px; }
+
+    /* 摘要卡片 */
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .metric-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+    }
+    .metric-card .label { font-size: 11px; color: var(--muted); }
+    .metric-card .value { font-size: 20px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+    .metric-card .sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    /* Tab */
+    .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+    .tab {
+      padding: 7px 16px;
+      border-radius: 999px;
+      font-size: 13px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      cursor: pointer;
+      background: transparent;
+    }
+    .tab.active { background: rgba(91,141,239,.15); border-color: var(--accent); color: var(--text); }
+
+    /* 图表占位 */
+    .chart-panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      height: 360px;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 14px;
+    }
+    .chart-title {
+      position: absolute;
+      top: 12px;
+      left: 16px;
+      font-size: 13px;
+      font-weight: 600;
+      z-index: 1;
+    }
+    .chart-placeholder {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    /* 模拟图表 */
+    .fake-chart {
+      position: absolute;
+      inset: 40px 16px 36px 50px;
+      border-left: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .fake-line {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      height: 60%;
+      background: linear-gradient(transparent 30%, rgba(91,141,239,.25) 30%, rgba(91,141,239,.25) 55%, transparent 55%);
+      clip-path: polygon(0% 80%, 8% 70%, 18% 75%, 28% 50%, 38% 55%, 48% 30%, 58% 40%, 68% 20%, 78% 35%, 88% 15%, 100% 25%, 100% 100%, 0% 100%);
+    }
+    .fake-boll-up, .fake-boll-lo {
+      position: absolute; left: 0; right: 0; height: 1px;
+    }
+    .fake-boll-up { top: 15%; background: rgba(239,83,80,.5); }
+    .fake-boll-lo { top: 75%; background: rgba(38,166,154,.5); }
+
+    /* 表格 */
+    .table-panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .table-head {
+      padding: 10px 14px;
+      font-size: 12px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { padding: 8px 14px; text-align: right; border-bottom: 1px solid var(--border); }
+    th:first-child, td:first-child { text-align: left; }
+    th { color: var(--muted); font-weight: 500; }
+    tr:last-child td { border-bottom: none; }
+
+    .footer {
+      padding: 10px 20px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .badge-mock {
+      position: fixed;
+      top: 60px;
+      right: 16px;
+      background: rgba(245,166,35,.15);
+      border: 1px solid #f5a623;
+      color: #f5a623;
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      z-index: 99;
+    }
+
+    @media (max-width: 960px) {
+      .main { flex-direction: column; }
+      .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="badge-mock">静态设计稿 · 无交互逻辑</div>
+
+  <header class="topbar">
+    <div class="logo">📊 <span>Indicator</span> Lab</div>
+    <div class="topbar-meta">数据源: AkShare · 本地 CSV · spec v1.0.0</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost">复制链接</button>
+      <button class="btn">导出 PNG</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <!-- 左侧参数栏 -->
+    <aside class="sidebar">
+      <div class="section-title">股票选择</div>
+      <div class="field">
+        <label>市场</label>
+        <select>
+          <option>港股</option>
+          <option>A股</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>股票</label>
+        <select>
+          <option selected>中芯国际 (00981.HK)</option>
+          <option>中芯国际 (688981.SH)</option>
+          <option>比亚迪 (002594.SZ)</option>
+          <option>长江电力 (600900.SH)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>数据区间</label>
+        <select>
+          <option selected>近 1 年（365 日）</option>
+          <option>近 6 个月</option>
+          <option>自定义…</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>复权方式</label>
+        <select>
+          <option selected>前复权 (qfq)</option>
+          <option>后复权 (hfq)</option>
+          <option>不复权</option>
+        </select>
+      </div>
+
+      <div class="section-title">指标参数</div>
+
+      <div class="accordion">
+        <div class="acc-head"><span><span class="dot" style="background:var(--rsi)"></span>RSI</span><span>›</span></div>
+        <div class="acc-body">
+          <label>周期 (period)</label>
+          <input type="range" min="2" max="50" value="14" />
+          <div class="range-row"><span>2</span><span class="range-val">14</span><span>50</span></div>
+          <p class="hint">衡量涨跌强弱。&gt;70 偏超买，&lt;30 偏超卖。</p>
+        </div>
+      </div>
+
+      <div class="accordion">
+        <div class="acc-head"><span><span class="dot" style="background:var(--accent)"></span>MACD</span><span>›</span></div>
+        <div class="acc-body">
+          <div class="field"><label>快线 (fast)</label><input type="number" value="12" /></div>
+          <div class="field"><label>慢线 (slow)</label><input type="number" value="26" /></div>
+          <div class="field"><label>信号线 (signal)</label><input type="number" value="9" /></div>
+          <p class="hint">DIF 上穿 DEA 为金叉，下穿为死叉。</p>
+        </div>
+      </div>
+
+      <div class="accordion">
+        <div class="acc-head"><span><span class="dot" style="background:#888"></span>布林带 BOLL</span><span>›</span></div>
+        <div class="acc-body">
+          <div class="field"><label>周期 (period)</label><input type="number" value="20" /></div>
+          <label>标准差倍数 (k)</label>
+          <input type="range" min="1" max="3" step="0.1" value="2" />
+          <div class="range-row"><span>1.0</span><span class="range-val">2.0</span><span>3.0</span></div>
+        </div>
+      </div>
+
+      <div class="accordion">
+        <div class="acc-head"><span><span class="dot" style="background:var(--atr)"></span>ATR</span><span>›</span></div>
+        <div class="acc-body">
+          <label>周期 (period)</label>
+          <input type="range" min="2" max="50" value="14" />
+          <div class="range-row"><span>2</span><span class="range-val">14</span><span>50</span></div>
+          <p class="hint">波动幅度（港元），止损参考 ≈ 2×ATR。</p>
+        </div>
+      </div>
+
+      <div class="sidebar-actions">
+        <button class="btn btn-ghost">重置默认</button>
+        <button class="btn">应用</button>
+      </div>
+      <div class="toggle-row">
+        <input type="checkbox" checked id="auto" />
+        <label for="auto">自动重绘（改参后 300ms 防抖）</label>
+      </div>
+    </aside>
+
+    <!-- 主内容 -->
+    <main class="content">
+      <div class="stock-banner">
+        <strong>中芯国际</strong> · 00981.HK · 港股 · 半导体
+        &nbsp;|&nbsp; 2025-07-07 ~ 2026-07-03 · 244 个交易日
+      </div>
+
+      <div class="metrics">
+        <div class="metric-card">
+          <div class="label">最新收盘</div>
+          <div class="value">77.60</div>
+          <div class="sub">港元 · 前复权</div>
+        </div>
+        <div class="metric-card">
+          <div class="label">RSI (14)</div>
+          <div class="value" style="color:var(--rsi)">48.97</div>
+          <div class="sub">中性区间</div>
+        </div>
+        <div class="metric-card">
+          <div class="label">MACD 柱</div>
+          <div class="value" style="color:var(--up)">+0.026</div>
+          <div class="sub">DIF 2.06 / DEA 2.04</div>
+        </div>
+        <div class="metric-card">
+          <div class="label">ATR (14)</div>
+          <div class="value" style="color:var(--atr)">6.21</div>
+          <div class="sub">2×ATR ≈ 12.4 港元</div>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab active">价格 + BOLL</button>
+        <button class="tab">RSI</button>
+        <button class="tab">MACD</button>
+        <button class="tab">ATR</button>
+      </div>
+
+      <div class="chart-panel">
+        <div class="chart-title">图1  中芯国际港股（00981）收盘价与布林带 (20, 2)</div>
+        <div class="fake-chart">
+          <div class="fake-boll-up"></div>
+          <div class="fake-boll-lo"></div>
+          <div class="fake-line"></div>
+        </div>
+        <div class="chart-placeholder" style="opacity:.3;font-size:11px;position:absolute;bottom:8px;right:16px">
+          ← 此处为 ECharts 图表区域 →
+        </div>
+      </div>
+
+      <div class="table-panel">
+        <div class="table-head">最近 5 个交易日指标明细</div>
+        <table>
+          <thead>
+            <tr>
+              <th>日期</th><th>收盘</th><th>RSI</th><th>DIF</th><th>DEA</th><th>柱</th><th>ATR</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>2026-06-27</td><td>82.40</td><td>55.2</td><td>2.18</td><td>2.01</td><td>+0.17</td><td>6.05</td></tr>
+            <tr><td>2026-06-30</td><td>89.40</td><td>62.8</td><td>2.45</td><td>2.08</td><td>+0.37</td><td>6.12</td></tr>
+            <tr><td>2026-07-02</td><td>80.40</td><td>51.3</td><td>2.12</td><td>2.04</td><td>+0.08</td><td>6.18</td></tr>
+            <tr><td>2026-07-03</td><td>77.60</td><td>48.97</td><td>2.06</td><td>2.04</td><td>+0.03</td><td>6.21</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <footer class="footer">
+    仅供学习，不构成投资建议 · Indicator Lab v0.1 设计稿 · 与 TASK02 spec 对齐
+  </footer>
+</body>
+</html>

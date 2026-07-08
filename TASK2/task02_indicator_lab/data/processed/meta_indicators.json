@@ -1,0 +1,49 @@
+{
+  "instrument": {
+    "stock_id": "smic_hk",
+    "name": "中芯国际",
+    "name_en": "SMIC",
+    "code": "00981",
+    "market": "港股",
+    "exchange": "HKEX",
+    "currency": "HKD",
+    "price_unit": "港元",
+    "akshare_symbol": "00981",
+    "ts_code": "00981.HK",
+    "industry": "半导体",
+    "notes": "与 A 股 688981 同公司不同市场，价格与指标应独立计算；\n港股交易时间与 A 股不同，节假日需以实际返回数据为准。\n"
+  },
+  "rows": 244,
+  "start_date": "2025-07-07",
+  "end_date": "2026-07-03",
+  "computed_at": "2026-07-05 00:10:12",
+  "spec_version": "1.0.0",
+  "nan_counts": {
+    "date": 0,
+    "open": 0,
+    "high": 0,
+    "low": 0,
+    "close": 0,
+    "volume": 0,
+    "rsi_14": 2,
+    "macd_dif": 0,
+    "macd_dea": 0,
+    "macd_hist": 0,
+    "boll_mid": 19,
+    "boll_upper": 19,
+    "boll_lower": 19,
+    "atr_14": 0
+  },
+  "latest_snapshot": {
+    "date": "2026-07-03",
+    "close": 77.6,
+    "rsi_14": 48.97,
+    "macd_dif": 2.0619,
+    "macd_dea": 2.0361,
+    "macd_hist": 0.0258,
+    "boll_mid": 78.23,
+    "boll_upper": 88.2,
+    "boll_lower": 68.26,
+    "atr_14": 6.2094
+  }
+}

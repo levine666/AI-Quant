@@ -1,0 +1,435 @@
+# =============================================================================
+# TASK02 技术指标实验规范 (Indicator Lab Specification)
+# =============================================================================
+# 版本: 1.0.0
+# 目录: task02_indicator_lab/
+# 用途: 以中芯国际港股（00981）为例，规范取数 → 指标计算 → Notebook 展示流程
+# 数据源: AkShare stock_hk_daily
+# 指标: RSI / MACD / 布林带(BOLL) / ATR
+# =============================================================================
+
+spec:
+  name: task02-indicator-lab
+  version: "1.0.0"
+  updated_at: "2026-07-04"
+  task_id: TASK02
+  title: 中芯国际港股技术指标实验
+
+# -----------------------------------------------------------------------------
+# 一、任务目标
+# -----------------------------------------------------------------------------
+objectives:
+  primary: 使用港股 00981 日线 OHLCV 数据，计算 RSI、MACD、布林带、ATR 四类指标
+  deliverables:
+    - notebooks/smic_hk_indicators.ipynb   # 完整计算与可视化过程
+    - data/processed/smic_hk_00981_indicators.csv
+    - data/figures/                        # Notebook 导出的图表（可选）
+  out_of_scope:
+    - 自动交易信号回测
+    - A 股 688981 指标（可列为扩展）
+    - 实时行情推送
+
+# -----------------------------------------------------------------------------
+# 二、工作流阶段（Notebook 开发顺序）
+# -----------------------------------------------------------------------------
+workflow:
+  phases:
+    - id: P1_read_spec
+      name: 阅读规范
+      description: 确认标的、参数、字段定义与 Notebook 章节结构
+      checklist:
+        - 理解四个指标的含义与参数默认值
+        - 确认 adjust=qfq 与 lookback_days
+
+    - id: P2_fetch_hk_data
+      name: 获取港股日线
+      description: 调用 ak.stock_hk_daily 拉取 00981 前复权日线
+      command: "# Notebook Cell 2-3 或 python scripts/fetch_hk.py（可选）"
+      outputs:
+        - data/raw/smic_hk_00981_daily.csv
+      checklist:
+        - 字段含 date/open/high/low/close/volume
+        - 按 date 升序排列
+        - 保存 meta 摘要（行数、日期区间）
+
+    - id: P3_compute_indicators
+      name: 计算技术指标
+      description: 在 DataFrame 上逐列追加 RSI/MACD/BOLL/ATR
+      outputs:
+        - data/processed/smic_hk_00981_indicators.csv
+      checklist:
+        - 使用 spec 中 indicators 节点定义的参数
+        - 前 N 日因窗口不足产生 NaN，保留并在 Notebook 中说明
+        - 禁止未来函数（仅用当日及历史数据）
+
+    - id: P4_visualize
+      name: Notebook 可视化
+      description: 分图展示价格 + 各指标，含中文标题与解读
+      outputs:
+        - 图1 收盘价 + 布林带
+        - 图2 RSI
+        - 图3 MACD
+        - 图4 ATR
+      checklist:
+        - 每图有标号、标题
+        - 关键阈值线（如 RSI 30/70）需标注
+        - Mac 中文字体配置（PingFang SC / Songti SC）
+
+    - id: P5_interpret
+      name: 指标解读
+      description: Markdown 单元格撰写各指标当前读数含义（非投资建议）
+      checklist:
+        - 结合最新 5~10 个交易日简述
+        - 说明指标局限性
+
+    - id: P6_export
+      name: 导出与归档
+      description: 保存 CSV、可选导出图表，记录 computed_at
+      outputs:
+        - data/processed/smic_hk_00981_indicators.csv
+        - data/processed/meta_indicators.json
+
+# -----------------------------------------------------------------------------
+# 三、标的定义（港股）
+# -----------------------------------------------------------------------------
+instrument:
+  stock_id: smic_hk
+  name: 中芯国际
+  name_en: SMIC
+  code: "00981"
+  market: 港股
+  exchange: HKEX
+  currency: HKD
+  price_unit: 港元
+  akshare_symbol: "00981"
+  ts_code: "00981.HK"
+  industry: 半导体
+  notes: |
+    与 A 股 688981 同公司不同市场，价格与指标应独立计算；
+    港股交易时间与 A 股不同，节假日需以实际返回数据为准。
+
+# -----------------------------------------------------------------------------
+# 四、数据取数配置
+# -----------------------------------------------------------------------------
+data_fetch:
+  provider: akshare
+  interface: stock_hk_daily
+  params:
+    symbol: "00981"
+    adjust: qfq          # 前复权，保证指标序列连续
+  lookback_days: 365     # 近一年；MACD/BOLL 建议至少 120 日以稳定 EMA
+  min_rows_required: 120
+
+  # 原始字段 → 标准字段
+  source_mapping:
+    date: date
+    open: open
+    high: high
+    low: low
+    close: close
+    volume: volume
+    amount: amount
+
+  output:
+    raw_csv: data/raw/smic_hk_00981_daily.csv
+    encoding: utf-8-sig
+
+# -----------------------------------------------------------------------------
+# 五、指标定义（公式、参数、输出列）
+# -----------------------------------------------------------------------------
+indicators:
+
+  RSI:
+    full_name: 相对强弱指数 (Relative Strength Index)
+    purpose: 衡量涨跌幅度的强弱，识别超买/超卖
+    input_columns: [close]
+    parameters:
+      period: 14       # 常用 14 日
+    output_columns:
+      - rsi_14
+    formula: |
+      1. 计算每日 change = close - close_prev
+      2. gain = max(change, 0), loss = max(-change, 0)
+      3. 对 gain/loss 做 period 日 Wilder 平滑（或简单移动平均，需在 Notebook 中声明）
+      4. RS = avg_gain / avg_loss
+      5. RSI = 100 - 100 / (1 + RS)
+    interpretation:
+      above_70: 偏超买，上涨动能强
+      below_30: 偏超卖，下跌动能强
+      mid_50: 多空均衡
+    plot:
+      id: fig_rsi
+      title: "图2  中芯国际港股（00981）RSI(14)"
+      hlines: [30, 50, 70]
+
+  MACD:
+    full_name: 指数平滑异同移动平均线
+    purpose: 判断趋势方向与动能变化
+    input_columns: [close]
+    parameters:
+      fast_period: 12
+      slow_period: 26
+      signal_period: 9
+    output_columns:
+      - macd_dif      # 快线：EMA12 - EMA26
+      - macd_dea      # 信号线：DIF 的 EMA9
+      - macd_hist     # 柱：(DIF - DEA) * 2 或 DIF-DEA（Notebook 需统一）
+    formula: |
+      DIF  = EMA(close, fast) - EMA(close, slow)
+      DEA  = EMA(DIF, signal)
+      HIST = DIF - DEA
+    interpretation:
+      golden_cross: DIF 上穿 DEA，短期转强
+      death_cross: DIF 下穿 DEA，短期转弱
+      hist_positive: 上涨动能增强
+    plot:
+      id: fig_macd
+      title: "图3  中芯国际港股（00981）MACD(12,26,9)"
+      panels: [dif_dea_lines, histogram]
+
+  BOLL:
+    full_name: 布林带 (Bollinger Bands)
+    purpose: 描述价格相对均值的偏离与波动区间
+    input_columns: [close]
+    parameters:
+      period: 20
+      std_multiplier: 2.0
+    output_columns:
+      - boll_mid      # 中轨：SMA(close, period)
+      - boll_upper    # 上轨：mid + k * std
+      - boll_lower    # 下轨：mid - k * std
+      - boll_width    # 可选：(upper - lower) / mid，衡量带宽
+    formula: |
+      mid   = SMA(close, period)
+      std   = rolling_std(close, period)
+      upper = mid + std_multiplier * std
+      lower = mid - std_multiplier * std
+    interpretation:
+      touch_upper: 价格偏高，可能强势或超买
+      touch_lower: 价格偏低，可能弱势或超卖
+      squeeze: 带宽收窄，波动蓄势
+    plot:
+      id: fig_boll
+      title: "图1  中芯国际港股（00981）收盘价与布林带(20,2)"
+      overlay_on: close
+
+  ATR:
+    full_name: 平均真实波幅 (Average True Range)
+    purpose: 衡量波动幅度，不表示方向；用于止损与仓位
+    input_columns: [high, low, close]
+    parameters:
+      period: 14
+    output_columns:
+      - atr_14
+    formula: |
+      TR = max(high - low, |high - close_prev|, |low - close_prev|)
+      ATR = Wilder_smooth(TR, period)  # 或 SMA(TR, period)，需与 RSI 平滑方式一致声明
+    interpretation:
+      rising_atr: 波动加大
+      falling_atr: 波动收敛
+      usage: 止损距离可设为 k * ATR（如 k=2）
+    plot:
+      id: fig_atr
+      title: "图4  中芯国际港股（00981）ATR(14)"
+      unit: 港元
+
+# -----------------------------------------------------------------------------
+# 六、输出 Schema（processed CSV）
+# -----------------------------------------------------------------------------
+schema:
+  processed_daily:
+    description: 原始 OHLCV + 全部指标列
+    required_columns:
+      - date
+      - open
+      - high
+      - low
+      - close
+      - volume
+      - rsi_14
+      - macd_dif
+      - macd_dea
+      - macd_hist
+      - boll_mid
+      - boll_upper
+      - boll_lower
+      - atr_14
+    optional_columns:
+      - boll_width
+      - amount
+    sort_by: date
+    ascending: true
+
+# -----------------------------------------------------------------------------
+# 七、Notebook 章节规划（smic_hk_indicators.ipynb）
+# -----------------------------------------------------------------------------
+notebook:
+  filename: notebooks/smic_hk_indicators.ipynb
+  kernel: python3
+  sections:
+
+    - id: S0
+      type: markdown
+      title: 标题与说明
+      content: |
+        TASK02 中芯国际港股（00981）技术指标实验
+        指标：RSI / MACD / 布林带 / ATR
+        规范：task02_indicator_lab/spec/indicator_lab.spec.yaml
+
+    - id: S1
+      type: markdown
+      title: 环境与依赖
+      content: 说明 akshare、pandas、matplotlib、（可选 ta-lib 或手写实现）
+
+    - id: S2
+      type: code
+      title: 导入库与读取 spec 参数
+      notes: 可用 yaml 加载本 spec，或内联参数字典与 spec 保持一致
+
+    - id: S3
+      type: code
+      title: 获取港股日线数据
+      api: ak.stock_hk_daily(symbol='00981', adjust='qfq')
+      output: df_raw
+
+    - id: S4
+      type: code
+      title: 数据预览与清洗
+      actions:
+        - 转换 date 为 datetime
+        - 排序、去重
+        - 保存 raw CSV
+
+    - id: S5
+      type: markdown
+      title: 指标计算说明
+      content: 简述四个指标含义（可引用 spec indicators 节点）
+
+    - id: S6
+      type: code
+      title: 计算 RSI(14)
+      output_column: rsi_14
+
+    - id: S7
+      type: code
+      title: 计算 MACD(12,26,9)
+      output_columns: [macd_dif, macd_dea, macd_hist]
+
+    - id: S8
+      type: code
+      title: 计算布林带(20,2)
+      output_columns: [boll_mid, boll_upper, boll_lower]
+
+    - id: S9
+      type: code
+      title: 计算 ATR(14)
+      output_column: atr_14
+
+    - id: S10
+      type: code
+      title: 合并指标并保存 processed CSV
+      output: data/processed/smic_hk_00981_indicators.csv
+
+    - id: S11
+      type: code
+      title: 图1 — 收盘价 + 布林带
+      figure: data/figures/fig_boll.png
+
+    - id: S12
+      type: code
+      title: 图2 — RSI
+      figure: data/figures/fig_rsi.png
+
+    - id: S13
+      type: code
+      title: 图3 — MACD
+      figure: data/figures/fig_macd.png
+
+    - id: S14
+      type: code
+      title: 图4 — ATR
+      figure: data/figures/fig_atr.png
+
+    - id: S15
+      type: markdown
+      title: 最新指标摘要与解读
+      content: |
+        输出 tail(5) 表格；
+        分别解读 RSI/MACD/BOLL/ATR 最新读数；
+        声明：仅供学习，不构成投资建议。
+
+# -----------------------------------------------------------------------------
+# 八、目录结构
+# -----------------------------------------------------------------------------
+directory_layout:
+  root: task02_indicator_lab/
+  paths:
+    - path: spec/indicator_lab.spec.yaml
+      desc: 本规范文件
+    - path: notebooks/smic_hk_indicators.ipynb
+      desc: 主 Notebook
+    - path: data/raw/
+      desc: 原始港股日线
+    - path: data/processed/
+      desc: 含指标的 CSV 与 meta JSON
+    - path: data/figures/
+      desc: Notebook 导出图表
+    - path: scripts/
+      desc: 指标计算与 pipeline 脚本
+
+# -----------------------------------------------------------------------------
+# 九、文件命名规范
+# -----------------------------------------------------------------------------
+naming:
+  raw_daily: "data/raw/smic_hk_00981_daily.csv"
+  processed: "data/processed/smic_hk_00981_indicators.csv"
+  meta: "data/processed/meta_indicators.json"
+  figure_pattern: "data/figures/fig_{indicator}.png"
+
+# -----------------------------------------------------------------------------
+# 十、数据质量与指标校验
+# -----------------------------------------------------------------------------
+validation:
+  raw:
+    min_rows: 120
+    required: [date, open, high, low, close, volume]
+    price_rules:
+      - high >= low
+      - close > 0
+  indicators:
+    rsi_range: [0, 100]
+    boll_order: "upper >= mid >= lower"   # 允许相等
+    atr_min: 0
+    nan_policy: 窗口期 NaN 允许，计算完成后报告 nan_count 各列
+  latest_snapshot:
+    description: meta JSON 中记录最新一日各指标值，便于报告引用
+
+# -----------------------------------------------------------------------------
+# 十一、依赖
+# -----------------------------------------------------------------------------
+dependencies:
+  python: ">=3.9"
+  packages:
+    - akshare>=1.18.0
+    - pandas>=2.0.0
+    - matplotlib>=3.7.0
+    - pyyaml>=6.0
+  optional:
+    - pandas-ta          # 可选，手写实现时不需要
+    - mplfinance         # K 线扩展图
+
+# -----------------------------------------------------------------------------
+# 十二、扩展任务（暂不实现）
+# -----------------------------------------------------------------------------
+extensions:
+  - id: compare_a_h_indicators
+    description: 对比 A 股 688981 与港股 00981 同一指标读数
+    enabled: false
+
+  - id: signal_rules
+    description: 基于 MACD 金叉/死叉、RSI 阈值的简单信号列
+    enabled: false
+
+  - id: weekly_resample
+    description: 日频指标重采样为周频
+    enabled: false

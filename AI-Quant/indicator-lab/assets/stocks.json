@@ -1,0 +1,58 @@
+{
+  "defaults": {
+    "lookback_days": 365,
+    "adjust": "qfq",
+    "indicators": {
+      "rsi": { "period": 14 },
+      "macd": { "fast": 12, "slow": 26, "signal": 9 },
+      "boll": { "period": 20, "std_multiplier": 2.0 },
+      "atr": { "period": 14 }
+    }
+  },
+  "stocks": [
+    {
+      "id": "smic_hk",
+      "name": "中芯国际",
+      "code": "00981",
+      "market": "港股",
+      "ts_code": "00981.HK",
+      "currency": "HKD",
+      "unit": "港元",
+      "industry": "半导体",
+      "csv": "data/smic_hk_00981_daily.csv"
+    },
+    {
+      "id": "smic_a",
+      "name": "中芯国际",
+      "code": "688981",
+      "market": "A股",
+      "ts_code": "688981.SH",
+      "currency": "CNY",
+      "unit": "元",
+      "industry": "半导体",
+      "csv": "data/smic_688981_daily.csv"
+    },
+    {
+      "id": "byd",
+      "name": "比亚迪",
+      "code": "002594",
+      "market": "A股",
+      "ts_code": "002594.SZ",
+      "currency": "CNY",
+      "unit": "元",
+      "industry": "汽车",
+      "csv": "data/byd_002594_daily.csv"
+    },
+    {
+      "id": "cyp",
+      "name": "长江电力",
+      "code": "600900",
+      "market": "A股",
+      "ts_code": "600900.SH",
+      "currency": "CNY",
+      "unit": "元",
+      "industry": "公用事业",
+      "csv": "data/cyp_600900_daily.csv"
+    }
+  ]
+}

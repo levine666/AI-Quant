@@ -1,0 +1,20 @@
+[
+  {
+    "stock_id": "smic",
+    "name": "中芯国际",
+    "status": "PASS",
+    "errors": []
+  },
+  {
+    "stock_id": "byd",
+    "name": "比亚迪",
+    "status": "PASS",
+    "errors": []
+  },
+  {
+    "stock_id": "cyp",
+    "name": "长江电力",
+    "status": "PASS",
+    "errors": []
+  }
+]

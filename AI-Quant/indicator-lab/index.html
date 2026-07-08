@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Indicator Lab — 技术指标交互分析</title>
+  <link rel="stylesheet" href="css/theme.css" />
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+</head>
+<body>
+  <div id="loading" class="loading-overlay">加载数据中…</div>
+  <div id="toast" class="toast hidden"></div>
+
+  <header class="topbar">
+    <div class="logo">📊 <span>Indicator</span> Lab</div>
+    <div class="topbar-meta" id="topbarMeta">数据源: AkShare · 本地 CSV · spec v1.0.0</div>
+    <div class="topbar-actions">
+      <nav class="topbar-nav">
+        <a href="../index.html">A/H 对比</a>
+        <a href="index.html" class="active">Indicator Lab</a>
+      </nav>
+      <button type="button" class="btn btn-ghost" id="btnCopyLink">复制链接</button>
+      <button type="button" class="btn" id="btnExportPng">导出 PNG</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <aside class="sidebar">
+      <div class="section-title">股票选择</div>
+      <div class="field">
+        <label for="marketSelect">市场</label>
+        <select id="marketSelect">
+          <option value="all">全部</option>
+          <option value="港股">港股</option>
+          <option value="A股">A股</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="stockSelect">股票</label>
+        <select id="stockSelect"></select>
+      </div>
+      <div class="field">
+        <label for="rangeSelect">数据区间</label>
+        <select id="rangeSelect">
+          <option value="365">近 1 年（365 日）</option>
+          <option value="180">近 6 个月</option>
+          <option value="90">近 3 个月</option>
+          <option value="all">全部数据</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="adjustSelect">复权方式</label>
+        <select id="adjustSelect">
+          <option value="qfq" selected>前复权 (qfq)</option>
+          <option value="hfq">后复权 (hfq)</option>
+          <option value="none">不复权</option>
+        </select>
+        <p class="hint">v1 使用预生成 CSV，复权已在取数时固定为前复权。</p>
+      </div>
+
+      <div class="section-title">指标参数</div>
+
+      <div class="accordion open" data-acc="rsi">
+        <div class="acc-head" tabindex="0">
+          <span><span class="dot" style="background:var(--rsi)"></span>RSI</span>
+          <span class="acc-arrow">›</span>
+        </div>
+        <div class="acc-body">
+          <label for="rsiPeriod">周期 (period)</label>
+          <input type="range" id="rsiPeriod" min="2" max="50" value="14" />
+          <div class="range-row"><span>2</span><span class="range-val" id="rsiPeriodVal">14</span><span>50</span></div>
+          <p class="hint">衡量涨跌强弱。&gt;70 偏超买，&lt;30 偏超卖。</p>
+        </div>
+      </div>
+
+      <div class="accordion" data-acc="macd">
+        <div class="acc-head" tabindex="0">
+          <span><span class="dot" style="background:var(--accent)"></span>MACD</span>
+          <span class="acc-arrow">›</span>
+        </div>
+        <div class="acc-body">
+          <div class="field"><label for="macdFast">快线 (fast)</label><input type="number" id="macdFast" min="2" max="50" value="12" /></div>
+          <div class="field"><label for="macdSlow">慢线 (slow)</label><input type="number" id="macdSlow" min="3" max="100" value="26" /></div>
+          <div class="field"><label for="macdSignal">信号线 (signal)</label><input type="number" id="macdSignal" min="2" max="50" value="9" /></div>
+          <p class="hint">DIF 上穿 DEA 为金叉，下穿为死叉。</p>
+        </div>
+      </div>
+
+      <div class="accordion" data-acc="boll">
+        <div class="acc-head" tabindex="0">
+          <span><span class="dot" style="background:#888"></span>布林带 BOLL</span>
+          <span class="acc-arrow">›</span>
+        </div>
+        <div class="acc-body">
+          <div class="field"><label for="bollPeriod">周期 (period)</label><input type="number" id="bollPeriod" min="5" max="60" value="20" /></div>
+          <label for="bollK">标准差倍数 (k)</label>
+          <input type="range" id="bollK" min="1" max="3" step="0.1" value="2" />
+          <div class="range-row"><span>1.0</span><span class="range-val" id="bollKVal">2.0</span><span>3.0</span></div>
+        </div>
+      </div>
+
+      <div class="accordion" data-acc="atr">
+        <div class="acc-head" tabindex="0">
+          <span><span class="dot" style="background:var(--atr)"></span>ATR</span>
+          <span class="acc-arrow">›</span>
+        </div>
+        <div class="acc-body">
+          <label for="atrPeriod">周期 (period)</label>
+          <input type="range" id="atrPeriod" min="2" max="50" value="14" />
+          <div class="range-row"><span>2</span><span class="range-val" id="atrPeriodVal">14</span><span>50</span></div>
+          <p class="hint">波动幅度，止损参考 ≈ 2×ATR。</p>
+        </div>
+      </div>
+
+      <div class="sidebar-actions">
+        <button type="button" class="btn btn-ghost" id="btnReset">重置默认</button>
+        <button type="button" class="btn" id="btnApply">应用</button>
+      </div>
+      <div class="toggle-row">
+        <input type="checkbox" checked id="autoRedraw" />
+        <label for="autoRedraw">自动重绘（改参后 300ms 防抖）</label>
+      </div>
+    </aside>
+
+    <main class="content">
+      <div class="stock-banner" id="stockBanner">加载中…</div>
+
+      <div class="metrics">
+        <div class="metric-card">
+          <div class="label">最新收盘</div>
+          <div class="value" id="metricClose">—</div>
+          <div class="sub" id="metricCloseSub">—</div>
+        </div>
+        <div class="metric-card">
+          <div class="label" id="metricRsiLabel">RSI (14)</div>
+          <div class="value" id="metricRsi" style="color:var(--rsi)">—</div>
+          <div class="sub" id="metricRsiSub">—</div>
+        </div>
+        <div class="metric-card">
+          <div class="label">MACD 柱</div>
+          <div class="value" id="metricHist">—</div>
+          <div class="sub" id="metricMacdSub">—</div>
+        </div>
+        <div class="metric-card">
+          <div class="label" id="metricAtrLabel">ATR (14)</div>
+          <div class="value" id="metricAtr" style="color:var(--atr)">—</div>
+          <div class="sub" id="metricAtrSub">—</div>
+        </div>
+      </div>
+
+      <div class="tabs" id="chartTabs">
+        <button type="button" class="tab active" data-tab="boll">价格 + BOLL</button>
+        <button type="button" class="tab" data-tab="rsi">RSI</button>
+        <button type="button" class="tab" data-tab="macd">MACD</button>
+        <button type="button" class="tab" data-tab="atr">ATR</button>
+      </div>
+
+      <div class="chart-panel">
+        <div id="chart"></div>
+      </div>
+
+      <div class="table-panel">
+        <div class="table-head">最近 5 个交易日指标明细</div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>日期</th><th>收盘</th><th>RSI</th><th>DIF</th><th>DEA</th><th>柱</th><th>ATR</th>
+              </tr>
+            </thead>
+            <tbody id="detailTable"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <footer class="footer" id="footer">
+    仅供学习，不构成投资建议 · Indicator Lab v1.0 · spec v1.0.0
+  </footer>
+
+  <script src="js/indicators.js"></script>
+  <script src="js/chart-builder.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
