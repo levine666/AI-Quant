@@ -7,8 +7,11 @@ import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-LAB = Path(__file__).resolve().parents[1] / "indicator-lab"
+AI_QUANT = Path(__file__).resolve().parents[1]
+LAB = AI_QUANT / "indicator-lab"
+STRATEGY_LAB = AI_QUANT / "strategy-lab"
 DST = LAB / "data"
+STRATEGY_DST = STRATEGY_LAB / "data"
 
 SYNC_MAP = {
     "smic_hk_00981_daily.csv": [
@@ -38,44 +41,55 @@ def write_csv_no_bom(src: Path, dst: Path) -> None:
     dst.write_text(text, encoding="utf-8")
 
 
-def sync_public_lab() -> None:
-    """同步到仓库根目录 indicator-lab/，供 main 分支 Pages 直接访问 /AI-Quant/indicator-lab/。"""
-    public = ROOT / "indicator-lab"
+def sync_public_lab(src: Path, public_name: str) -> None:
+    """同步到仓库根目录，供 Pages 直接访问 /AI-Quant/{public_name}/。"""
+    public = ROOT / public_name
     if public.exists():
         shutil.rmtree(public)
     shutil.copytree(
-        LAB,
+        src,
         public,
         ignore=shutil.ignore_patterns(".DS_Store"),
     )
     (public / ".nojekyll").touch(exist_ok=True)
-    print(f"  {LAB.relative_to(ROOT)} -> indicator-lab/")
+    print(f"  {src.relative_to(ROOT)} -> {public_name}/")
 
 
-def main() -> None:
-    DST.mkdir(parents=True, exist_ok=True)
+def sync_csv_data(dst_dir: Path, label: str) -> None:
+    dst_dir.mkdir(parents=True, exist_ok=True)
     for name, candidates in SYNC_MAP.items():
-        target = DST / name
+        target = dst_dir / name
         for src in candidates:
             if src.exists():
                 write_csv_no_bom(src, target)
-                print(f"  {src.relative_to(ROOT)} -> indicator-lab/data/{name}")
+                print(f"  {src.relative_to(ROOT)} -> {label}/data/{name}")
                 break
         else:
             if target.exists():
-                print(f"  保留已有 indicator-lab/data/{name}")
+                print(f"  保留已有 {label}/data/{name}")
             else:
                 print(f"  警告: 未找到 {name} 数据源")
 
-    for f in sorted(DST.glob("*.csv")):
+    for f in sorted(dst_dir.glob("*.csv")):
         write_csv_no_bom(f, f)
 
-    sync_public_lab()
 
-    print("\nindicator-lab/data/ 文件清单:")
-    for f in sorted(DST.glob("*.csv")):
+def print_csv_inventory(dst_dir: Path, label: str) -> None:
+    print(f"\n{label}/data/ 文件清单:")
+    for f in sorted(dst_dir.glob("*.csv")):
         rows = sum(1 for _ in f.open(encoding="utf-8")) - 1
         print(f"  {f.name}: {rows} 行")
+
+
+def main() -> None:
+    sync_csv_data(DST, "indicator-lab")
+    sync_csv_data(STRATEGY_DST, "strategy-lab")
+
+    sync_public_lab(LAB, "indicator-lab")
+    sync_public_lab(STRATEGY_LAB, "strategy-lab")
+
+    print_csv_inventory(DST, "indicator-lab")
+    print_csv_inventory(STRATEGY_DST, "strategy-lab")
 
 
 if __name__ == "__main__":

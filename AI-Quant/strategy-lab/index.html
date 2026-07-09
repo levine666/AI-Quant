@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Strategy Lab — 双均线交叉策略</title>
+  <link rel="stylesheet" href="css/theme.css" />
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+</head>
+<body>
+  <div id="loading" class="loading-overlay">加载数据中…</div>
+  <div id="toast" class="toast hidden"></div>
+
+  <header class="topbar">
+    <div class="logo">📈 <span>Strategy</span> Lab</div>
+    <div class="topbar-meta">双均线交叉策略 · 浏览器端回测 · 含手续费万三 + 滑点 5bp</div>
+    <nav class="topbar-nav">
+      <a href="/AI-Quant/">A/H 对比</a>
+      <a href="/AI-Quant/indicator-lab/">Indicator Lab</a>
+      <a href="/AI-Quant/strategy-lab/" class="active">Strategy Lab</a>
+    </nav>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="section-title">标的与区间</div>
+      <div class="field">
+        <label for="stockSelect">股票</label>
+        <select id="stockSelect"></select>
+      </div>
+      <div class="field">
+        <label for="startDate">回测起始</label>
+        <input type="date" id="startDate" />
+      </div>
+      <div class="field">
+        <label for="endDate">回测结束</label>
+        <input type="date" id="endDate" />
+      </div>
+
+      <div class="section-title">策略参数</div>
+      <div class="field">
+        <label for="rngShort">短均线 MA short</label>
+        <input type="range" min="2" max="30" value="5" id="rngShort" />
+        <div class="range-row"><span>2</span><span class="range-val" id="valShort">5</span><span>30</span></div>
+      </div>
+      <div class="field">
+        <label for="rngLong">长均线 MA long</label>
+        <input type="range" min="5" max="90" value="15" id="rngLong" />
+        <div class="range-row"><span>5</span><span class="range-val" id="valLong">15</span><span>90</span></div>
+      </div>
+      <p class="hint">金叉：短均线上穿长均线 → 次日开盘买入<br/>死叉：短均线下穿 → 当日收盘卖出</p>
+
+      <div class="section-title">交易成本</div>
+      <div class="cost-grid">
+        <div class="field">
+          <label for="commissionRate">手续费（单边）</label>
+          <input type="number" id="commissionRate" value="0.0003" step="0.0001" />
+        </div>
+        <div class="field">
+          <label for="slippageRate">滑点</label>
+          <input type="number" id="slippageRate" value="0.0005" step="0.0001" />
+        </div>
+      </div>
+      <p class="hint">基准：首日开盘买入持有，末日收盘卖出，同样扣费</p>
+
+      <button class="btn btn-primary" type="button" id="btnRun">▶ 运行回测</button>
+    </aside>
+
+    <main class="content">
+      <div class="stock-banner" id="stockBanner">
+        <span class="name">—</span>
+      </div>
+
+      <div class="metrics">
+        <div class="metric neutral">
+          <div class="label">策略累计回报</div>
+          <div class="value" id="metricReturn">—</div>
+          <div class="sub" id="metricReturnSub">净值 —</div>
+        </div>
+        <div class="metric neutral">
+          <div class="label">买入持有基准</div>
+          <div class="value" id="metricBh">—</div>
+          <div class="sub" id="metricBhSub">净值 —</div>
+        </div>
+        <div class="metric negative">
+          <div class="label">最大回撤 MDD</div>
+          <div class="value" id="metricMdd">—</div>
+          <div class="sub" id="metricMddSub">风险暴露</div>
+        </div>
+        <div class="metric neutral">
+          <div class="label">夏普比率</div>
+          <div class="value" id="metricSharpe">—</div>
+          <div class="sub" id="metricSharpeSub">rf = 0 · 252 日年化</div>
+        </div>
+      </div>
+
+      <div class="chart-block">
+        <div class="chart-head">
+          <h3><span class="fig-no">图1</span>收盘价 + 双均线 + 买卖信号</h3>
+          <span class="caption" id="priceCaption">—</span>
+        </div>
+        <div id="chartPrice" class="chart"></div>
+      </div>
+
+      <div class="chart-block">
+        <div class="chart-head">
+          <h3><span class="fig-no">图2</span>策略净值 vs 买入持有</h3>
+          <span class="caption">含手续费与滑点</span>
+        </div>
+        <div id="chartEquity" class="chart tall"></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="chart-block">
+          <div class="chart-head">
+            <h3><span class="fig-no">图3</span>参数扫描 · 夏普热力图</h3>
+            <span class="caption" id="heatCaption">—</span>
+          </div>
+          <div id="chartHeat" class="chart short"></div>
+        </div>
+
+        <div class="chart-block">
+          <div class="chart-head">
+            <h3>最近交易信号</h3>
+            <span class="caption" id="tradeCaption">—</span>
+          </div>
+          <table>
+            <thead>
+              <tr><th>日期</th><th>信号</th><th>价格</th><th>MA短</th><th>MA长</th></tr>
+            </thead>
+            <tbody id="tradeTable">
+              <tr><td colspan="5" style="color:var(--muted)">运行回测后显示</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <footer>仅供学习，不构成投资建议 · Strategy Lab v1.0 · 对齐 quant_backtest 引擎 · TASK3</footer>
+
+  <script src="js/backtest.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

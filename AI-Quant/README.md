@@ -8,6 +8,7 @@
 |------|------|
 | [/](https://levine666.github.io/AI-Quant/) | 中芯国际 A/H 股对比分析 |
 | [/indicator-lab/](https://levine666.github.io/AI-Quant/indicator-lab/) | Indicator Lab — RSI / MACD / 布林带 / ATR 交互分析 |
+| [/strategy-lab/](https://levine666.github.io/AI-Quant/strategy-lab/) | Strategy Lab — 双均线交叉策略浏览器端回测 |
 
 ## 目录结构
 
@@ -17,6 +18,10 @@ AI-Quant/
 │   ├── index.html
 │   ├── css/ js/ assets/
 │   └── data/*.csv       # 预置日线数据
+├── strategy-lab/        # 双均线策略回测工具（纯前端）
+│   ├── index.html
+│   ├── css/ js/ assets/
+│   └── data/*.csv
 ├── scripts/
 │   └── sync_data.py     # 从 TASK 数据同步 CSV
 └── docs/                # 产品设计稿与界面参考
@@ -28,9 +33,12 @@ AI-Quant/
 # 同步最新 CSV
 python3 AI-Quant/scripts/sync_data.py
 
-# 启动本地服务（在项目根目录）
+# 启动本地服务
 cd AI-Quant/indicator-lab && python3 -m http.server 8080
 # 打开 http://localhost:8080
+
+cd AI-Quant/strategy-lab && python3 -m http.server 8081
+# 打开 http://localhost:8081
 ```
 
 ## 部署

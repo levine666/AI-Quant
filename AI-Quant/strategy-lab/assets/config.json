@@ -1,0 +1,61 @@
+{
+  "defaults": {
+    "initial_capital": 100000,
+    "trading_days": 252,
+    "commission_rate": 0.0003,
+    "slippage_rate": 0.0005,
+    "position_lag": 1,
+    "date_window": {
+      "start_date": "2025-07-09",
+      "end_date": "2026-07-07"
+    },
+    "strategy": {
+      "short": 5,
+      "long": 15
+    }
+  },
+  "param_scan": {
+    "param_grid": {
+      "short": [5, 8, 10, 12, 15, 20],
+      "long": [15, 20, 30, 40, 60]
+    }
+  },
+  "stocks": [
+    {
+      "id": "smic_hk",
+      "name": "中芯国际",
+      "code": "00981",
+      "market": "港股",
+      "ts_code": "00981.HK",
+      "unit": "港元",
+      "csv": "data/smic_hk_00981_daily.csv"
+    },
+    {
+      "id": "smic_a",
+      "name": "中芯国际",
+      "code": "688981",
+      "market": "A股",
+      "ts_code": "688981.SH",
+      "unit": "元",
+      "csv": "data/smic_688981_daily.csv"
+    },
+    {
+      "id": "byd",
+      "name": "比亚迪",
+      "code": "002594",
+      "market": "A股",
+      "ts_code": "002594.SZ",
+      "unit": "元",
+      "csv": "data/byd_002594_daily.csv"
+    },
+    {
+      "id": "cyp",
+      "name": "长江电力",
+      "code": "600900",
+      "market": "A股",
+      "ts_code": "600900.SH",
+      "unit": "元",
+      "csv": "data/cyp_600900_daily.csv"
+    }
+  ]
+}

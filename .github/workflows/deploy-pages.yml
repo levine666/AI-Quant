@@ -47,6 +47,8 @@ jobs:
           python AI-Quant/scripts/sync_data.py
           cp -r indicator-lab _site/indicator-lab
           cp .nojekyll _site/indicator-lab/
+          cp -r strategy-lab _site/strategy-lab
+          cp .nojekyll _site/strategy-lab/
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
