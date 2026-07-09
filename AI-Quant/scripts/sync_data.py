@@ -32,13 +32,33 @@ SYNC_MAP = {
 }
 
 
+def write_csv_no_bom(src: Path, dst: Path) -> None:
+    """写入 UTF-8 CSV（无 BOM），避免 GitHub Pages 前端解析表头失败。"""
+    text = src.read_text(encoding="utf-8-sig")
+    dst.write_text(text, encoding="utf-8")
+
+
+def sync_public_lab() -> None:
+    """同步到仓库根目录 indicator-lab/，供 main 分支 Pages 直接访问 /AI-Quant/indicator-lab/。"""
+    public = ROOT / "indicator-lab"
+    if public.exists():
+        shutil.rmtree(public)
+    shutil.copytree(
+        LAB,
+        public,
+        ignore=shutil.ignore_patterns(".DS_Store"),
+    )
+    (public / ".nojekyll").touch(exist_ok=True)
+    print(f"  {LAB.relative_to(ROOT)} -> indicator-lab/")
+
+
 def main() -> None:
     DST.mkdir(parents=True, exist_ok=True)
     for name, candidates in SYNC_MAP.items():
         target = DST / name
         for src in candidates:
             if src.exists():
-                shutil.copy2(src, target)
+                write_csv_no_bom(src, target)
                 print(f"  {src.relative_to(ROOT)} -> indicator-lab/data/{name}")
                 break
         else:
@@ -47,9 +67,14 @@ def main() -> None:
             else:
                 print(f"  警告: 未找到 {name} 数据源")
 
+    for f in sorted(DST.glob("*.csv")):
+        write_csv_no_bom(f, f)
+
+    sync_public_lab()
+
     print("\nindicator-lab/data/ 文件清单:")
     for f in sorted(DST.glob("*.csv")):
-        rows = sum(1 for _ in f.open(encoding="utf-8-sig")) - 1
+        rows = sum(1 for _ in f.open(encoding="utf-8")) - 1
         print(f"  {f.name}: {rows} 行")
 
 
