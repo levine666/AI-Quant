@@ -294,6 +294,7 @@ function bindEvents() {
 }
 
 async function init() {
+  if (!guardFileProtocol()) return;
   setLoading(true);
   try {
     const res = await fetch("assets/config.json");

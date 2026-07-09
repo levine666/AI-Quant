@@ -439,6 +439,7 @@ function bindEvents() {
 }
 
 async function init() {
+  if (typeof guardFileProtocol === "function" && !guardFileProtocol()) return;
   setLoading(true);
   try {
     const res = await fetch("assets/stocks.json");

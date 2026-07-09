@@ -33,12 +33,11 @@ AI-Quant/
 # 同步最新 CSV
 python3 AI-Quant/scripts/sync_data.py
 
-# 启动本地服务
-cd AI-Quant/indicator-lab && python3 -m http.server 8080
-# 打开 http://localhost:8080
+# 启动本地服务（勿直接双击 HTML）
+python3 AI-Quant/run.py serve
 
-cd AI-Quant/strategy-lab && python3 -m http.server 8081
-# 打开 http://localhost:8081
+# 仅同步 CSV
+python3 AI-Quant/run.py sync
 ```
 
 ## 部署
