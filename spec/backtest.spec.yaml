@@ -1,0 +1,384 @@
+# =============================================================================
+# 量化策略回测规范 (Backtest Specification)
+# =============================================================================
+# 版本: 1.0.0
+# 用途: 定义标的、策略、场景、引擎参数与输出格式，供 run_backtest_from_spec.py 执行
+# 引擎: quant_backtest/
+# 任务: TASK3 双均线策略首秀（可扩展至 MACD / RSI 等）
+# =============================================================================
+
+spec:
+  name: ai-quant-backtest
+  version: "1.0.0"
+  updated_at: "2026-07-09"
+  task_id: TASK3
+  title: 双均线交叉策略回测
+  maintainer: 张利伟
+
+# -----------------------------------------------------------------------------
+# 一、任务目标
+# -----------------------------------------------------------------------------
+objectives:
+  primary: 基于已存储日线 CSV，执行双均线策略回测并输出绩效指标
+  deliverables:
+    - data/backtest/report_{timestamp}.json      # 完整回测报告
+    - data/backtest/summary_{timestamp}.csv      # 场景指标汇总表
+    - data/backtest/equity/{scenario_id}.csv     # 可选净值明细
+    - TASK3/figures/                             # 若启用 plot=true
+  metrics:
+    - cumulative_return_pct    # 累计回报 (%)
+    - buy_hold_return_pct      # 买入持有基准 (%)
+    - max_drawdown_pct         # 最大回撤 (%)
+    - sharpe_ratio             # 夏普比率（日频年化，rf=0）
+    - buy_count / sell_count   # 金叉/死叉次数（若策略提供）
+
+# -----------------------------------------------------------------------------
+# 二、工作流阶段
+# -----------------------------------------------------------------------------
+workflow:
+  phases:
+    - id: P1_read_spec
+      name: 阅读规范
+      description: 确认标的 data_path、策略类型与场景 batches
+      checklist:
+        - 数据 CSV 已存在（来自 TASK1/TASK2 或 fetch_from_spec.py）
+        - 策略 params 合法（如 dual_ma 要求 short < long）
+        - 理解 position_lag=1 避免未来函数
+
+    - id: P2_run_primary
+      name: 执行主场景回测
+      description: 对 primary 场景运行单标的单策略，作为报告主线
+      command: python run_backtest_from_spec.py
+      outputs:
+        - data/backtest/report_*.json
+
+    - id: P3_run_batches
+      name: 批量场景对比
+      description: 执行 param_sensitivity / cross_stock 等 batches
+      checklist:
+        - 每个 scenario 有唯一 scenario_id
+        - 汇总表含 stock_id、strategy、关键指标
+
+    - id: P4_export
+      name: 导出与可视化
+      description: 可选导出净值 CSV、生成 TASK3 图表
+      command: python run_backtest_from_spec.py --plot
+      outputs:
+        - data/backtest/equity/*.csv
+        - TASK3/figures/fig*.png
+
+    - id: P4b_param_scan
+      name: 参数网格扫描
+      description: 对 dual_ma 的 short/long 做笛卡尔积搜索，输出排序表与热力图
+      command: python run_backtest_from_spec.py --scan-only
+      outputs:
+        - data/backtest/scan_*.csv
+        - data/backtest/scan_*.json
+        - data/backtest/scan_heatmap_*.png
+      checklist:
+        - param_scan.enabled = true
+        - 确认 rank_by 指标（默认 sharpe_ratio）
+        - 查看 top_n 最优参数组合
+
+    - id: P5_report
+      name: 撰写作业报告
+      description: 基于 report JSON 生成 PDF（TASK3/generate_pdf.py）
+      command: python TASK3/run_task3.py
+
+# -----------------------------------------------------------------------------
+# 三、回测引擎默认配置
+# -----------------------------------------------------------------------------
+defaults:
+  # 回测日期窗口（null 表示使用 CSV 全量区间）
+  date_window:
+    start_date: "2025-07-09"      # 含当日，null=不限
+    end_date: "2026-07-07"        # 含当日，null=不限
+
+  engine:
+    initial_capital: 100000.0    # 初始资金（元/港元，与标的币种一致）
+    trading_days: 252              # 年化交易日
+    commission_rate: 0.0003        # 单边手续费率，万三
+    slippage_rate: 0.0005          # 滑点率：买价=open×(1+滑点)，卖价=close×(1-滑点)
+    position_lag: 1                # 信号延迟 bar 数，1=次日执行
+    price_col: close
+    open_col: open
+    date_col: date
+
+  # 基准：买入持有 — 首日开盘价全仓买入，末日收盘价卖出，均扣手续费+滑点
+  execution:
+    strategy:
+      entry: open           # 开仓：当日开盘价 × (1+滑点)，扣手续费
+      exit: close             # 平仓：当日收盘价 × (1-滑点)，扣手续费
+      mark_to_market: close   # 持仓盯市：收盘价
+    benchmark:
+      entry: open             # 首日开盘全仓买入
+      exit: close             # 末日收盘全部卖出
+      description: 买入持有基准，与策略使用相同费率
+
+  output:
+    base_dir: data/backtest
+    encoding: utf-8
+    save_equity_csv: true          # 是否保存每条场景的净值明细
+    plot: false                    # 是否调用 TASK3 绑图（CLI --plot 可覆盖）
+
+  validation:
+    min_rows: 60                   # 至少 60 个交易日
+    required_columns:
+      - date
+      - open
+      - close
+
+# -----------------------------------------------------------------------------
+# 四、输入数据 Schema（日线 CSV）
+# -----------------------------------------------------------------------------
+schema:
+  daily_ohlcv:
+    description: 策略回测最低要求 date + close；推荐完整 OHLCV
+    columns:
+      - name: date
+        type: date
+        required: true
+      - name: open
+        type: float
+        required: false
+      - name: high
+        type: float
+        required: false
+      - name: low
+        type: float
+        required: false
+      - name: close
+        type: float
+        required: true
+      - name: volume
+        type: float
+        required: false
+
+# -----------------------------------------------------------------------------
+# 五、文件命名
+# -----------------------------------------------------------------------------
+naming:
+  report_json: "report_{timestamp}.json"
+  summary_csv: "summary_{timestamp}.csv"
+  equity_csv: "equity/{scenario_id}.csv"
+  figure_ma_cross: "TASK3/figures/fig1_ma_cross_{stock_id}.png"
+  figure_equity: "TASK3/figures/fig2_equity_{stock_id}.png"
+
+# -----------------------------------------------------------------------------
+# 六、标的与数据路径
+# -----------------------------------------------------------------------------
+stocks:
+  - stock_id: smic_hk
+    name: 中芯国际
+    code: "00981"
+    market: 港股
+    currency: HKD
+    unit: 港元
+    industry: 半导体
+    data_path: TASK2/task02_indicator_lab/data/raw/smic_hk_00981_daily.csv
+    notes: TASK3 主回测标的
+
+  - stock_id: smic_a
+    name: 中芯国际
+    code: "688981"
+    market: A股
+    currency: CNY
+    unit: 元
+    industry: 半导体
+    data_path: data/raw/smic/daily_688981_qfq.csv
+
+  - stock_id: smic
+    name: 中芯国际
+    code: "688981"
+    market: A股
+    currency: CNY
+    unit: 元
+    industry: 半导体
+    data_path: data/raw/smic/daily_688981_qfq.csv
+    alias_of: smic_a
+
+  - stock_id: byd
+    name: 比亚迪
+    code: "002594"
+    market: A股
+    currency: CNY
+    unit: 元
+    industry: 汽车
+    data_path: data/raw/byd/daily_002594_qfq.csv
+
+  - stock_id: cyp
+    name: 长江电力
+    code: "600900"
+    market: A股
+    currency: CNY
+    unit: 元
+    industry: 公用事业
+    data_path: data/raw/cyp/daily_600900_qfq.csv
+
+# -----------------------------------------------------------------------------
+# 七、策略注册表
+# -----------------------------------------------------------------------------
+strategies:
+  dual_ma:
+    class: quant_backtest.strategies.DualMACrossStrategy
+    description: 双简单移动平均线交叉；短>长持多，金叉/死叉标记买卖
+    params_schema:
+      short:
+        type: int
+        default: 5
+        min: 2
+        max: 120
+        description: 短均线周期
+      long:
+        type: int
+        default: 15
+        min: 3
+        max: 250
+        description: 长均线周期
+    constraints:
+      - rule: short < long
+        message: 短均线周期必须小于长均线周期
+    outputs:
+      - target_position
+      - ma_short
+      - ma_long
+      - buy_signal
+      - sell_signal
+
+  # 扩展占位（enabled: false）
+  macd_cross:
+    class: quant_backtest.strategies.MacdCrossStrategy
+    description: MACD 金叉死叉策略（DIF vs DEA）
+    enabled: false
+    params_schema:
+      fast: { type: int, default: 12 }
+      slow: { type: int, default: 26 }
+      signal: { type: int, default: 9 }
+
+  turtle:
+    class: quant_backtest.strategies.TurtleStrategy
+    description: 海龟法则 Donchian 突破 + ATR 止损（仅做多）
+    params_schema:
+      entry_period: { type: int, default: 20, min: 5, max: 120 }
+      exit_period: { type: int, default: 10, min: 3, max: 60 }
+      atr_period: { type: int, default: 20, min: 5, max: 60 }
+      stop_n_multiplier: { type: float, default: 2.0, min: 0.5, max: 5.0 }
+    constraints:
+      - rule: entry_period > exit_period
+        message: 入场周期应大于出场周期
+    outputs:
+      - target_position
+      - donchian_entry_high
+      - donchian_exit_low
+      - atr_n
+      - stop_price
+      - buy_signal
+      - sell_signal
+
+# -----------------------------------------------------------------------------
+# 八、回测场景定义
+# -----------------------------------------------------------------------------
+scenarios:
+  # 主场景：TASK3 报告主线
+  primary:
+    scenario_id: primary_smic_hk_ma5_15
+    stock_id: smic_hk
+    strategy:
+      type: dual_ma
+      params:
+        short: 5
+        long: 15
+
+  # 批量对比场景
+  batches:
+    - batch_id: param_sensitivity
+      description: 中芯港股不同均线周期敏感性
+      stock_id: smic_hk
+      strategy: dual_ma
+      runs:
+        - { scenario_id: ma_5_15,  params: { short: 5,  long: 15 } }
+        - { scenario_id: ma_10_30, params: { short: 10, long: 30 } }
+        - { scenario_id: ma_20_60, params: { short: 20, long: 60 } }
+
+    - batch_id: cross_stock
+      description: 四标的统一 MA5/15 横向对比
+      strategy: dual_ma
+      params:
+        short: 5
+        long: 15
+      stock_ids:
+        - smic_hk
+        - smic_a
+        - byd
+        - cyp
+
+# -----------------------------------------------------------------------------
+# 九、绩效指标定义
+# -----------------------------------------------------------------------------
+metrics_definitions:
+  cumulative_return_pct:
+    label: 累计回报
+    formula: "final_equity / initial_capital - 1"
+    unit: "%"
+    higher_is_better: true
+
+  buy_hold_return_pct:
+    label: 买入持有回报
+    formula: "首日 open 全仓买入、末日 close 卖出，扣手续费与滑点后的净值回报"
+    unit: "%"
+    higher_is_better: true
+
+  max_drawdown_pct:
+    label: 最大回撤
+    formula: "min((equity - cummax(equity)) / cummax(equity))"
+    unit: "%"
+    higher_is_better: false
+
+  sharpe_ratio:
+    label: 夏普比率
+    formula: "mean(strategy_ret) / std(strategy_ret) * sqrt(252)"
+    unit: ratio
+    higher_is_better: true
+    notes: 无风险利率假设为 0
+
+  buy_count:
+    label: 买入信号次数
+    source: column buy_signal sum
+
+  sell_count:
+    label: 卖出信号次数
+    source: column sell_signal sum
+
+# -----------------------------------------------------------------------------
+# 十、参数网格扫描（param_scan）
+# -----------------------------------------------------------------------------
+param_scan:
+  enabled: true
+  stock_id: smic_hk
+  strategy: dual_ma
+  param_grid:
+    short: [5, 8, 10, 12, 15, 20]
+    long: [15, 20, 30, 40, 60]
+  constraints:
+    - rule: short < long
+      message: 短均线周期必须小于长均线周期
+  rank_by: sharpe_ratio              # cumulative_return_pct | max_drawdown_pct
+  rank_ascending: false              # MDD 排序时可设 true（越小越好取 abs 需自行处理）
+  top_n: 5
+  save_heatmap: true
+  output:
+    scan_csv: "scan_{timestamp}.csv"
+    scan_json: "scan_{timestamp}.json"
+    heatmap_png: "scan_heatmap_{stock_id}_{timestamp}.png"
+
+# -----------------------------------------------------------------------------
+# 十一、扩展任务
+# -----------------------------------------------------------------------------
+extensions:
+  - id: commission_sensitivity
+    description: 测试 commission_rate 0.1% / 0.3% 对净值影响
+    enabled: false
+
+  - id: tushare_data
+    description: 使用 Tushare MCP 补充标的后回测
+    enabled: false

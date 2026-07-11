@@ -1,0 +1,127 @@
+# =============================================================================
+# AI-Quant · Turtle Lab 迁入规范
+# =============================================================================
+# 版本: 1.0.0
+# 用途: 将 turtle_dashboard/ 整合进 AI-Quant 平台的具体步骤与双模式部署
+# 关联: spec/ai_quant_platform.spec.yaml · spec/turtle_dashboard.spec.yaml
+# =============================================================================
+
+spec:
+  name: ai-quant-turtle-lab-integration
+  version: "1.0.0"
+  updated_at: "2026-07-11"
+  source: turtle_dashboard/
+  target: AI-Quant/turtle-lab/
+
+# -----------------------------------------------------------------------------
+# 一、迁移映射
+# -----------------------------------------------------------------------------
+file_mapping:
+  - from: turtle_dashboard/index.html
+    to: AI-Quant/turtle-lab/index.html
+    changes:
+      - 引入 ../shared/css/theme.css
+      - 顶栏改用 shared/js/nav.js
+      - 首页链接 → ../
+      - 移除 dry-run 文案
+
+  - from: turtle_dashboard/static/app.js
+    to: AI-Quant/turtle-lab/js/app.js
+    changes:
+      - API base：静态模式不调用 /api，改用 turtle_engine.js
+      - hybrid：检测 location.port，8080+ 走 /api，Pages 走 JS
+
+  - from: turtle_dashboard/static/turtle_engine.js
+    to: AI-Quant/turtle-lab/js/turtle_engine.js
+
+  - from: turtle_dashboard/build_demo_data.py
+    to: 合并进 AI-Quant/scripts/sync_data.py
+
+  - from: quant_backtest/strategies/turtle.py
+    to: 保持仓库根 quant_backtest/（共享引擎，不复制）
+
+  - from: refresh_turtle_data.py
+    to: 保持仓库根（CI 与 sync 调用）
+
+# -----------------------------------------------------------------------------
+# 二、双模式运行
+# -----------------------------------------------------------------------------
+runtime_modes:
+  static_pages:
+    description: GitHub Pages 部署，无 Python 后端
+    backtest: turtle-lab/js/turtle_engine.js
+    data: turtle-lab/data/*.csv（sync_data 烘焙）
+    manifest: turtle-lab/assets/manifest.json（sync 时复制精简版）
+    refresh_button: 隐藏或改为「数据由 CI 每日更新」提示
+
+  local_full:
+    description: 本地开发，Python 与 quant_backtest 完全一致
+    command: python3 AI-Quant/run.py serve --api --open turtle_lab
+    api:
+      - GET /api/manifest
+      - POST /api/backtest
+      - POST /api/refresh
+    implementation: 合并 turtle_dashboard/server.py 路由到 AI-Quant/run.py
+
+# -----------------------------------------------------------------------------
+# 三、run.py 扩展
+# -----------------------------------------------------------------------------
+run_py_extensions:
+  new_flags:
+    --api: 启用 ThreadingHTTPServer + 回测 API（原 turtle_dashboard/server）
+    --open: 增加 turtle_lab → /turtle-lab/
+  default_port: 8080
+  static_root: AI-Quant/                    # 或仓库根，含 ah-compare Legacy
+
+# -----------------------------------------------------------------------------
+# 四、CI 变更（deploy-pages.yml）
+# -----------------------------------------------------------------------------
+ci_changes:
+  add_steps:
+    - python3 refresh_turtle_data.py --validate-only || true
+    - python3 AI-Quant/scripts/build_registry.py
+    - cp -r AI-Quant/index.html _site/index.html    # 新首页替代 dashboard 复制
+    - cp -r AI-Quant/apps _site/apps
+    - cp -r AI-Quant/shared _site/shared
+    - cp -r AI-Quant/turtle-lab _site/turtle-lab
+    - cp .nojekyll _site/turtle-lab/
+  keep_legacy:
+    - 过渡期保留 cp dashboard.html 为 ah-compare/ 或根目录重定向
+
+# -----------------------------------------------------------------------------
+# 五、实施顺序
+# -----------------------------------------------------------------------------
+implementation_phases:
+  - phase: 1
+    name: 注册表 + 首页
+    tasks:
+      - 创建 spec 三件套（已完成）
+      - build_registry.py + index.html 骨架
+      - deploy 复制 registry
+
+  - phase: 2
+    name: Turtle 迁入
+    tasks:
+      - 复制 turtle-lab 目录
+      - app.js 双模式切换
+      - sync_data 包含 turtle CSV
+
+  - phase: 3
+    name: 统一导航
+    tasks:
+      - shared/nav.js
+      - 各 lab 顶栏「返回首页」
+
+  - phase: 4
+    name: run.py 合并 API
+    tasks:
+      - 废弃独立 run_turtle_dashboard.py（README 指向 AI-Quant/run.py）
+
+# -----------------------------------------------------------------------------
+# 六、验收
+# -----------------------------------------------------------------------------
+acceptance:
+  - https://levine666.github.io/AI-Quant/ 显示 4 卡首页
+  - turtle-lab 在 Pages 上可切换标的并看到回测结果
+  - 本地 --api 模式与现 turtle_dashboard 行为一致
+  - 首页 registry 与 spec/ai_quant_apps.yaml 同步

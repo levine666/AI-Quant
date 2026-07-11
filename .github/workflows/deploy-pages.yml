@@ -31,24 +31,29 @@ jobs:
 
       - name: Fetch latest stock data
         run: |
-          pip install "akshare>=1.18.0" "pandas>=2.0.0"
+          pip install "akshare>=1.18.0" "pandas>=2.0.0" "pyyaml>=6.0"
           python fetch_smic.py
 
-      - name: Sync indicator-lab data
+      - name: Sync AI-Quant apps and registry
         run: python AI-Quant/scripts/sync_data.py
 
       - name: Prepare site
         run: |
-          cp dashboard.html index.html
           mkdir -p _site
-          cp index.html _site/
+          cp -r AI-Quant/index.html _site/index.html
+          cp -r AI-Quant/apps _site/apps
+          cp -r AI-Quant/shared _site/shared
+          cp -r AI-Quant/ah-compare _site/ah-compare
+          cp -r AI-Quant/indicator-lab _site/indicator-lab
+          cp -r AI-Quant/strategy-lab _site/strategy-lab
+          cp -r AI-Quant/turtle-lab _site/turtle-lab
+          cp -r AI-Quant/data _site/data
           cp .nojekyll _site/
-          cp -r data _site/
-          python AI-Quant/scripts/sync_data.py
-          cp -r indicator-lab _site/indicator-lab
-          cp .nojekyll _site/indicator-lab/
-          cp -r strategy-lab _site/strategy-lab
-          cp .nojekyll _site/strategy-lab/
+          for d in ah-compare indicator-lab strategy-lab turtle-lab; do
+            cp .nojekyll _site/$d/
+          done
+          # 根目录 dashboard 重定向到 ah-compare（兼容旧链接）
+          echo '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=ah-compare/"><title>Redirect</title></head><body><a href="ah-compare/">A/H 对比</a></body></html>' > _site/dashboard.html
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

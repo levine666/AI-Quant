@@ -1,51 +1,37 @@
-# AI-Quant
+# AI-Quant Web 平台
 
-量化分析 Web 应用集合，部署于 [GitHub Pages](https://levine666.github.io/AI-Quant/)。
+本目录为 [GitHub Pages](https://levine666.github.io/AI-Quant/) 发布的 Web 应用集合。
 
-## 应用
+完整说明见仓库根目录 [README.md](../README.md)。
+
+## 快速启动
+
+```bash
+# 在仓库根目录
+./start_ai_quant.sh
+# 或
+python3 AI-Quant/run.py serve
+```
+
+## 应用路径
 
 | 路径 | 说明 |
 |------|------|
-| [/](https://levine666.github.io/AI-Quant/) | 中芯国际 A/H 股对比分析 |
-| [/indicator-lab/](https://levine666.github.io/AI-Quant/indicator-lab/) | Indicator Lab — RSI / MACD / 布林带 / ATR 交互分析 |
-| [/strategy-lab/](https://levine666.github.io/AI-Quant/strategy-lab/) | Strategy Lab — 双均线交叉策略浏览器端回测 |
+| `/` | 平台首页 |
+| `/ah-compare/` | TASK1 · A/H 股对比 |
+| `/indicator-lab/` | TASK2 · 技术指标 |
+| `/strategy-lab/` | TASK3 · 双均线策略 |
+| `/turtle-lab/` | 海龟交易法则 |
 
-## 目录结构
+## 维护脚本
 
-```
-AI-Quant/
-├── indicator-lab/       # 技术指标交互工具（纯前端）
-│   ├── index.html
-│   ├── css/ js/ assets/
-│   └── data/*.csv       # 预置日线数据
-├── strategy-lab/        # 双均线策略回测工具（纯前端）
-│   ├── index.html
-│   ├── css/ js/ assets/
-│   └── data/*.csv
-├── scripts/
-│   └── sync_data.py     # 从 TASK 数据同步 CSV
-└── docs/                # 产品设计稿与界面参考
-```
+| 脚本 | 作用 |
+|------|------|
+| `scripts/sync_data.py` | 同步 CSV 到各 Lab |
+| `scripts/build_registry.py` | 生成 `apps/registry.json` |
+| `run.py` | 本地 HTTP 服务 |
 
-## 本地开发
+## Spec
 
-```bash
-# 同步最新 CSV
-python3 AI-Quant/scripts/sync_data.py
-
-# 启动本地服务（勿直接双击 HTML）
-python3 AI-Quant/run.py serve
-
-# 仅同步 CSV
-python3 AI-Quant/run.py sync
-```
-
-## 部署
-
-推送 `main` 分支后，GitHub Actions 自动构建并发布到 `gh-pages` 分支。
-
-```bash
-git push origin main
-```
-
-访问：https://levine666.github.io/AI-Quant/
+- [ai_quant_platform.spec.yaml](../spec/ai_quant_platform.spec.yaml)
+- [ai_quant_apps.yaml](../spec/ai_quant_apps.yaml)

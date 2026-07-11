@@ -1,0 +1,187 @@
+# =============================================================================
+# AI-Quant 首页规范 (Homepage Specification)
+# =============================================================================
+# 版本: 1.0.0
+# 用途: 定义平台首页布局、内容区块、App 卡片与导航交互
+# 关联: spec/ai_quant_platform.spec.yaml · spec/ai_quant_apps.yaml
+# 页面: AI-Quant/index.html
+# =============================================================================
+
+spec:
+  name: ai-quant-homepage
+  version: "1.0.0"
+  updated_at: "2026-07-11"
+  parent: spec/ai_quant_platform.spec.yaml
+
+# -----------------------------------------------------------------------------
+# 一、页面定位
+# -----------------------------------------------------------------------------
+objectives:
+  primary: 作为 AI-Quant 统一入口，展示作者量化作品目录，引导进入各 Lab
+  audience:
+    - 访客：快速了解有哪些工具、点击体验
+    - 作者：新增策略后自动出现在作品墙
+  tone: 专业、克制、深色金融 UI，中文为主
+
+# -----------------------------------------------------------------------------
+# 二、信息架构
+# -----------------------------------------------------------------------------
+layout:
+  file: AI-Quant/index.html
+  structure: |
+    ┌─────────────────────────────────────────────────────────┐
+    │  Topbar: Logo · tagline · GitHub · 数据更新日期         │
+    ├─────────────────────────────────────────────────────────┤
+    │  Hero: 一句话介绍 + 统计（4 应用 · N 标的 · 更新日期）   │
+    ├─────────────────────────────────────────────────────────┤
+    │  Filter: [全部] [研究] [指标] [策略]                    │
+    ├─────────────────────────────────────────────────────────┤
+    │  App Grid（卡片，由 registry.json 渲染）                 │
+    │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐   │
+    │  │ A/H 对比 │ │Indicator │ │ MA 策略  │ │ 海龟法则 │   │
+    │  └──────────┘ └──────────┘ └──────────┘ └──────────┘   │
+    ├─────────────────────────────────────────────────────────┤
+    │  Timeline / Roadmap（可选折叠）                          │
+    ├─────────────────────────────────────────────────────────┤
+    │  Footer: 免责声明 · spec 版本 · 本地开发说明             │
+    └─────────────────────────────────────────────────────────┘
+
+# -----------------------------------------------------------------------------
+# 三、Hero 区
+# -----------------------------------------------------------------------------
+hero:
+  title: AI-Quant
+  subtitle: 个人量化研究与策略作品集合
+  description: |
+    收录 A/H 股对比、技术指标实验与策略回测看板。
+    每个模块对应一次课程作业或独立研究，持续追加。
+  stats:
+    source: apps/registry.json
+    fields:
+      - { id: app_count, label: 应用, compute: count(apps where status!=hidden) }
+      - { id: stock_count, label: 标的, value: 4 }
+      - { id: data_updated, label: 数据截至, source: manifest.global.refreshed_at }
+
+# -----------------------------------------------------------------------------
+# 四、App 卡片规范
+# -----------------------------------------------------------------------------
+app_card:
+  data_source: apps/registry.json#apps[]
+  render: client_side            # JS fetch registry.json 动态渲染
+  grid:
+    columns: { desktop: 3, tablet: 2, mobile: 1 }
+    gap: 16px
+
+  card_fields:
+    - app_id
+    - title
+    - subtitle
+    - type                         # research | indicators | strategy | tool
+    - status                         # live | beta | local_only | planned
+    - href                           # 相对路径，如 ./turtle-lab/
+    - icon                           # emoji 或 SVG id
+    - accent_color                   # 卡片顶条颜色
+    - tags[]                         # 如 [趋势跟踪, Donchian, ATR]
+    - task_id                        # TASK1 / TASK2 / …
+    - description                    # 一行摘要
+    - metrics_preview                # 可选，预计算 snapshot
+    - backend_badge                  # static | hybrid | local_api
+
+  status_badge:
+    live: { label: 在线, color: "#26a69a" }
+    beta: { label: 测试, color: "#f5a623" }
+    local_only: { label: 本地完整版, color: "#8b98b3" }
+    planned: { label: 规划中, color: "#5b8def", disabled: true }
+
+  type_accent:
+    research: "#f5a623"
+    indicators: "#7e57c2"
+    strategy: "#26a69a"
+    tool: "#5b8def"
+
+  hover: 边框高亮 + 轻微上浮 + 「进入 →」
+
+  click: navigate to href（planned/disabled 卡片不可点）
+
+# -----------------------------------------------------------------------------
+# 五、筛选与排序
+# -----------------------------------------------------------------------------
+filter:
+  categories:
+    - { id: all, label: 全部 }
+    - { id: research, label: 研究 }
+    - { id: indicators, label: 指标 }
+    - { id: strategy, label: 策略 }
+  default: all
+  sort:
+    default: order asc              # registry 中 order 字段
+    options: [order, title, added_at desc]
+
+# -----------------------------------------------------------------------------
+# 六、顶栏导航（全局）
+# -----------------------------------------------------------------------------
+topbar:
+  logo: AI-Quant
+  links:
+    - { label: 首页, href: ./, active_on: index }
+    - { label: GitHub, href: https://github.com/levine666/AI-Quant, external: true }
+  right:
+    - data_freshness_badge          # 来自 manifest 或 registry meta
+
+# -----------------------------------------------------------------------------
+# 七、Roadmap 区块（可选 v1.0）
+# -----------------------------------------------------------------------------
+roadmap_section:
+  enabled: true
+  title: 路线图
+  collapsible: true
+  items_source: spec/ai_quant_platform.spec.yaml#roadmap
+  display: 时间线样式，planned apps 灰显
+
+# -----------------------------------------------------------------------------
+# 八、Footer
+# -----------------------------------------------------------------------------
+footer:
+  disclaimer: 仅供学习研究，不构成投资建议
+  links:
+    - { label: 本地开发, anchor: #dev }
+    - { label: Spec 文档, href: ../spec/ai_quant_platform.spec.yaml }
+  dev_instructions: |
+    git clone 后执行：
+    python3 AI-Quant/run.py serve
+    浏览器打开 http://127.0.0.1:8080/
+
+# -----------------------------------------------------------------------------
+# 九、响应式与无障碍
+# -----------------------------------------------------------------------------
+ux:
+  responsive_breakpoints:
+    mobile: 768
+    tablet: 1100
+  accessibility:
+    - 卡片可键盘聚焦
+    - 状态 badge 不仅依赖颜色（含文字）
+  performance:
+    - registry.json < 20KB
+    - 无阻塞 API；首屏不依赖 Python
+
+# -----------------------------------------------------------------------------
+# 十、与 CI 集成
+# -----------------------------------------------------------------------------
+build:
+  inputs:
+    - spec/ai_quant_apps.yaml
+    - data/turtle/manifest.json      # 可选，注入 data_updated
+  command: python3 AI-Quant/scripts/build_registry.py
+  output: AI-Quant/apps/registry.json
+  deploy: _site/index.html + _site/apps/registry.json
+
+# -----------------------------------------------------------------------------
+# 十一、验收
+# -----------------------------------------------------------------------------
+acceptance:
+  - 首页加载 registry.json 并渲染 4 张卡片
+  - 筛选「策略」仅显示 strategy 类型
+  - 点击 Turtle Lab 进入 turtle-lab/
+  - 移动端 1 列布局正常
+  - 无 JS 时显示 noscript 提示

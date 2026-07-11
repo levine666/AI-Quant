@@ -1,0 +1,85 @@
+{
+  "global": {
+    "version": "1.0.0",
+    "refreshed_at": "2026-07-11T21:05:07",
+    "spec_version": "1.0.0"
+  },
+  "stocks": [
+    {
+      "stock_id": "smic_hk",
+      "name": "中芯国际",
+      "code": "00981",
+      "market": "港股",
+      "currency": "HKD",
+      "unit": "港元",
+      "data_path": "TASK2/task02_indicator_lab/data/raw/smic_hk_00981_daily.csv",
+      "adjust": "qfq",
+      "last_complete_date": "2026-07-07",
+      "date_range": {
+        "start": "2025-07-09",
+        "end": "2026-07-07"
+      },
+      "row_count": 244,
+      "validated_at": "2026-07-11T21:05:07",
+      "status": "ok",
+      "error_message": null
+    },
+    {
+      "stock_id": "smic_a",
+      "name": "中芯国际",
+      "code": "688981",
+      "market": "A股",
+      "currency": "CNY",
+      "unit": "元",
+      "data_path": "data/raw/smic/daily_688981_qfq.csv",
+      "adjust": "qfq",
+      "last_complete_date": "2026-07-03",
+      "date_range": {
+        "start": "2025-07-04",
+        "end": "2026-07-03"
+      },
+      "row_count": 236,
+      "validated_at": "2026-07-11T21:05:07",
+      "status": "ok",
+      "error_message": null
+    },
+    {
+      "stock_id": "byd",
+      "name": "比亚迪",
+      "code": "002594",
+      "market": "A股",
+      "currency": "CNY",
+      "unit": "元",
+      "data_path": "data/raw/byd/daily_002594_qfq.csv",
+      "adjust": "qfq",
+      "last_complete_date": "2026-07-03",
+      "date_range": {
+        "start": "2025-07-04",
+        "end": "2026-07-03"
+      },
+      "row_count": 242,
+      "validated_at": "2026-07-11T21:05:07",
+      "status": "ok",
+      "error_message": null
+    },
+    {
+      "stock_id": "cyp",
+      "name": "长江电力",
+      "code": "600900",
+      "market": "A股",
+      "currency": "CNY",
+      "unit": "元",
+      "data_path": "data/raw/cyp/daily_600900_qfq.csv",
+      "adjust": "qfq",
+      "last_complete_date": "2026-07-03",
+      "date_range": {
+        "start": "2025-07-04",
+        "end": "2026-07-03"
+      },
+      "row_count": 242,
+      "validated_at": "2026-07-11T21:05:07",
+      "status": "ok",
+      "error_message": null
+    }
+  ]
+}

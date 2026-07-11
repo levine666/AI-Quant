@@ -1,0 +1,302 @@
+# =============================================================================
+# AI-Quant 平台总规范 (AI-Quant Platform Specification)
+# =============================================================================
+# 版本: 1.0.0
+# 用途: 定义个人量化作品集合站的整体架构、应用注册、部署与演进路线
+# 站点: https://levine666.github.io/AI-Quant/
+# 关联: spec/ai_quant_homepage.spec.yaml · spec/ai_quant_apps.yaml
+# =============================================================================
+
+spec:
+  name: ai-quant-platform
+  version: "1.0.0"
+  updated_at: "2026-07-11"
+  maintainer: 张利伟
+  tagline: 个人量化研究与策略作品集合
+  repository: AI-Quant/
+
+# -----------------------------------------------------------------------------
+# 一、平台愿景
+# -----------------------------------------------------------------------------
+vision:
+  one_liner: 一个持续生长的量化作品展示站——从数据对比、指标实验到策略回测，逐一收录、统一体验。
+  principles:
+    - 每个 TASK / 策略独立成「应用（App）」，通过注册表挂载到首页
+    - 统一视觉与导航，降低用户在不同工具间切换成本
+    - 优先静态部署（GitHub Pages），Python 能力作为本地增强或预构建产物
+    - 新策略上线 = 新增 app 目录 + 注册表一条 + 同步数据脚本扩展
+  non_goals_v1:
+    - 用户登录、评论、社区
+    - 实盘交易与券商 API
+    - 多租户 SaaS 后端
+
+# -----------------------------------------------------------------------------
+# 二、现有作品映射（TASK → App）
+# -----------------------------------------------------------------------------
+legacy_mapping:
+  TASK1:
+    task_id: TASK1
+    app_id: ah_compare
+    title: 中芯国际 A/H 对比
+    type: research
+    status: live
+    current_path: dashboard.html          # 根目录，CI 复制为 index.html
+    target_path: AI-Quant/ah-compare/   # v1.1 迁移目标
+    backend: static
+    description: A 股 688981 vs 港股 00981 价格、溢价、走势对比
+
+  TASK2:
+    task_id: TASK2
+    app_id: indicator_lab
+    title: Indicator Lab
+    type: indicators
+    status: live
+    current_path: AI-Quant/indicator-lab/
+    backend: static                       # 纯前端 JS 算指标
+    description: RSI / MACD / 布林带 / ATR 交互分析
+    spec: TASK2/task02_indicator_lab/spec/indicator_lab.spec.yaml
+
+  TASK3:
+    task_id: TASK3
+    app_id: strategy_lab_ma
+    title: Strategy Lab · 双均线
+    type: strategy
+    status: live
+    current_path: AI-Quant/strategy-lab/
+    backend: static                       # 浏览器端 JS 回测
+    description: MA 金叉死叉策略回测与参数扫描
+    spec: spec/backtest.spec.yaml
+    engine_ref: quant_backtest/strategies/ma_cross.py
+
+  TURTLE:
+    task_id: TURTLE_DASHBOARD
+    app_id: turtle_lab
+    title: Turtle Lab · 海龟法则
+    type: strategy
+    status: ready_to_integrate
+    current_path: turtle_dashboard/       # 待迁入 AI-Quant/turtle-lab/
+    backend: hybrid                       # 见 deployment.tiers
+    description: Donchian 突破 + ATR 止损，系统一/二可配置
+    spec:
+      - spec/turtle_dashboard.spec.yaml
+      - spec/turtle_strategy.spec.yaml
+    engine_ref: quant_backtest/strategies/turtle.py
+
+# -----------------------------------------------------------------------------
+# 三、目标目录结构（v1.1）
+# -----------------------------------------------------------------------------
+directory_layout:
+  root: AI-Quant/
+  tree: |
+    AI-Quant/
+    ├── index.html                 # 平台首页（作品导航 Hub）
+    ├── apps/
+    │   └── registry.json          # 由 spec/ai_quant_apps.yaml 生成
+    ├── shared/
+    │   ├── css/theme.css          # 设计令牌 + 组件
+    │   ├── js/nav.js              # 顶栏 / 侧栏 / 面包屑
+    │   └── js/utils.js            # 日期、格式化、fetch 封装
+    ├── ah-compare/                # TASK1
+    │   └── index.html
+    ├── indicator-lab/             # TASK2
+    ├── strategy-lab/              # TASK3 双均线
+    ├── turtle-lab/                # 海龟法则（自 turtle_dashboard 迁入）
+    ├── scripts/
+    │   ├── sync_data.py           # 统一 CSV 同步
+    │   └── build_registry.py      # YAML → registry.json
+    ├── docs/
+    └── run.py                     # 本地 dev：sync + serve + 可选 API
+
+  migration_notes:
+    - 过渡期可保留根目录 dashboard.html，CI 逐步改为复制 AI-Quant/index.html
+    - turtle-lab 迁入时保留 turtle_engine.js 静态回测作为 Pages 部署方案
+
+# -----------------------------------------------------------------------------
+# 四、应用分层（Deployment Tiers）
+# -----------------------------------------------------------------------------
+deployment:
+  hosting: GitHub Pages
+  base_url: https://levine666.github.io/AI-Quant/
+  workflow: .github/workflows/deploy-pages.yml
+
+  tiers:
+    static:
+      description: 纯 HTML/CSS/JS + 预置 CSV/JSON，可直接 Pages 部署
+      apps: [ah_compare, indicator_lab, strategy_lab_ma]
+      requirements:
+        - 无 POST /api 依赖
+        - 数据通过 sync_data.py 预烘焙进各 app/data/
+
+    static_with_js_engine:
+      description: 复杂逻辑在浏览器完成（移植 quant_backtest 子集到 JS）
+      apps: [turtle_lab]
+      requirements:
+        - turtle-lab/js/turtle_engine.js 与 Python 策略对齐测试
+        - 刷新数据依赖 CI cron + sync_data.py，非实时 API
+      fallback:
+        label: 完整版（本地 Python 引擎）
+        command: python3 AI-Quant/run.py serve --api
+
+    local_api:
+      description: 本地开发服务器提供 Python 回测 API
+      apps: [turtle_lab]
+      entry: python3 AI-Quant/run.py serve --api --port 8080
+      use_when: 需要与 quant_backtest 100% 一致、或调试新策略
+
+  ci_pipeline:
+    on_push_main:
+      - fetch_smic.py                  # A/H 对比数据
+      - AI-Quant/scripts/sync_data.py  # 各 Lab CSV
+      - AI-Quant/scripts/build_registry.py
+      - copy _site artifact
+    schedule:
+      cron: "0 1 * * 1-5"              # 工作日更新 CSV
+    future:
+      - precompute turtle backtest snapshots for demo cards
+
+# -----------------------------------------------------------------------------
+# 五、共享能力
+# -----------------------------------------------------------------------------
+shared_platform:
+  design_system:
+    inherit_from: AI-Quant/indicator-lab/css/theme.css
+    tokens:
+      bg: "#0b0f17"
+      panel: "#121826"
+      border: "#243049"
+      text: "#e8edf7"
+      muted: "#8b98b3"
+      accent: "#5b8def"              # 平台主色
+      accent_strategy: "#26a69a"     # 策略类应用
+      accent_indicator: "#7e57c2"    # 指标类
+      accent_research: "#f5a623"     # 研究类
+
+  navigation:
+    component: shared/js/nav.js
+    modes:
+      - global_topbar                 # 首页 + 各 app 顶栏「返回首页」
+      - app_sidebar                   # 策略/指标 app 内参数侧栏
+    breadcrumbs: true                  # 首页 > 策略 > Turtle Lab
+
+  data_layer:
+    canonical_stocks: spec/backtest.spec.yaml#stocks
+    sync_script: AI-Quant/scripts/sync_data.py
+    per_app_copies: true               # 各 app/data/ 独立副本，避免路径耦合
+    manifest: data/turtle/manifest.json  # 全局数据截至日（供首页 badge）
+
+  engine_layer:
+    python_package: quant_backtest/
+    js_ports:
+      - strategy-lab/js/backtest.js
+      - turtle-lab/js/turtle_engine.js   # 待迁入/对齐
+
+# -----------------------------------------------------------------------------
+# 六、工作流：新增一个策略 App
+# -----------------------------------------------------------------------------
+workflow:
+  add_new_strategy_app:
+    phases:
+      - id: S1_spec
+        name: 编写策略 spec
+        outputs:
+          - spec/{app_id}_strategy.spec.yaml
+          - spec/{app_id}_dashboard.spec.yaml
+        checklist:
+          - 参数 schema、约束、指标定义
+          - 与 quant_backtest Strategy 接口对齐
+
+      - id: S2_implement
+        name: 实现策略与回测
+        outputs:
+          - quant_backtest/strategies/{name}.py
+          - {app_dir}/js/ 或 API runner
+
+      - id: S3_ui
+        name: 看板 UI
+        outputs:
+          - AI-Quant/{app_id}/index.html
+        checklist:
+          - 复用 shared/css/theme.css
+          - 嵌入 global nav
+
+      - id: S4_register
+        name: 注册到平台
+        command: 编辑 spec/ai_quant_apps.yaml → python AI-Quant/scripts/build_registry.py
+        outputs:
+          - AI-Quant/apps/registry.json
+          - 首页卡片自动出现
+
+      - id: S5_sync_deploy
+        name: 数据同步与部署
+        command: python AI-Quant/scripts/sync_data.py && git push
+        checklist:
+          - sync_data.py 包含新 app 数据路径
+          - deploy-pages.yml 复制新 app 目录到 _site
+
+# -----------------------------------------------------------------------------
+# 七、本地开发入口（统一）
+# -----------------------------------------------------------------------------
+local_dev:
+  primary_command: python3 AI-Quant/run.py serve
+  flags:
+    --port: 8080
+    --open: [home, ah_compare, indicator_lab, strategy_lab_ma, turtle_lab]
+    --api: 启用 Python 回测 API（turtle 等 hybrid app）
+    --sync: 启动前同步 CSV
+  deprecated:
+    - python run_turtle_dashboard.py      # 合并进 AI-Quant/run.py --api
+    - 直接双击 HTML 文件
+
+# -----------------------------------------------------------------------------
+# 八、版本路线图
+# -----------------------------------------------------------------------------
+roadmap:
+  v1_0:
+    - 平台首页 index.html + apps/registry.json
+    - 整合现有 3 个 TASK + Turtle Lab 卡片入口
+    - 统一顶栏导航
+
+  v1_1:
+    - turtle-lab 迁入 AI-Quant，Pages 静态 JS 回测
+    - ah-compare 迁入 AI-Quant/ah-compare/
+    - shared/ 设计系统抽离
+
+  v1_2:
+    - 首页展示各策略最新 snapshot 指标（预计算 JSON）
+    - 策略 tags 筛选（趋势 / 均值回归 / 突破）
+
+  v2_0:
+    - 可选 Cloudflare Worker / 轻 API 统一回测
+    - 用户保存参数到 URL query（已有部分支持）
+
+# -----------------------------------------------------------------------------
+# 九、验收标准（平台 v1.0）
+# -----------------------------------------------------------------------------
+acceptance:
+  - 首页列出 4 个 app，卡片可点击跳转
+  - 各 app 顶栏可返回首页
+  - GitHub Pages 上 indicator-lab、strategy-lab、ah 对比可访问
+  - turtle-lab 在 Pages 上以静态模式可回测，或明确标注「本地完整版」
+  - 新增 app 仅需改 apps.yaml + 新目录，无需改首页 HTML 硬编码
+
+# -----------------------------------------------------------------------------
+# 十、扩展占位（未来策略）
+# -----------------------------------------------------------------------------
+future_apps:
+  - app_id: rsi_filter_ma
+    title: MA + RSI 过滤
+    type: strategy
+    status: planned
+    depends: [strategy_lab_ma, indicator_lab]
+
+  - app_id: macd_cross
+    title: MACD 金叉策略
+    type: strategy
+    status: planned
+    spec_ref: spec/backtest.spec.yaml#strategies.macd_cross
+
+  - app_id: portfolio_scan
+    title: 多标的参数扫描
+    type: tool
+    status: planned
+    engine_ref: quant_backtest/scanner.py

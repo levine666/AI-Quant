@@ -1,0 +1,507 @@
+# =============================================================================
+# 海龟交易法则演示看板规范 (Turtle Trading Dashboard Specification)
+# =============================================================================
+# 版本: 1.0.0
+# 用途: 定义 Web 看板 UI、API、交互流程、可视化与回测结果展示
+# 关联: spec/turtle_strategy.spec.yaml · spec/turtle_data_refresh.spec.yaml
+# 技术栈: HTML + ECharts（v1 静态/轻后端）· quant_backtest 引擎
+# =============================================================================
+
+spec:
+  name: ai-quant-turtle-dashboard
+  version: "1.0.0"
+  updated_at: "2026-07-11"
+  task_id: TURTLE_DASHBOARD
+  title: 海龟法则演示看板
+  maintainer: 张利伟
+  related_specs:
+    - spec/turtle_strategy.spec.yaml
+    - spec/turtle_data_refresh.spec.yaml
+    - spec/backtest.spec.yaml
+  ui_mockup: turtle_dashboard/docs/turtle_dashboard_mockup.html
+
+# -----------------------------------------------------------------------------
+# 一、产品目标
+# -----------------------------------------------------------------------------
+objectives:
+  primary: 浏览器端交互式海龟策略回测演示，支持换标的、换时段、调参数、看交易点与指标
+  deliverables:
+    - turtle_dashboard/index.html              # 或 React/Vue 入口
+    - turtle_dashboard/docs/turtle_dashboard_mockup.html
+    - turtle_dashboard/server.py               # 可选 FastAPI 薄后端
+    - run_turtle_dashboard.py                    # 一键启动 + 可选 refresh
+    - data/turtle/backtest_cache/                # 最近一次回测 JSON 缓存
+  user_stories:
+    - 选择不同标的（中芯港股/A股、比亚迪、长江电力等）立即重跑回测
+    - 拖动或输入回测起止日期，窗口内重新计算指标
+    - 切换系统一/系统二或自定义 entry/exit/ATR/止损参数
+    - 查看累计收益、夏普、最大回撤、胜率等与买入持有对比
+    - K 线主图标注买卖点、Donchian 通道、止损线；副图展示 ATR 与净值
+    - 点击「刷新数据」拉取最新交易日 CSV，数据版本显示「截至 YYYY-MM-DD」
+
+  out_of_scope_v1:
+    - 实盘下单、券商对接
+    - 用户登录与云端保存配置
+    - 多策略组合、参数优化网格（可链到 backtest --scan-only）
+    - 做空与加仓金字塔（见 turtle_strategy extensions）
+
+# -----------------------------------------------------------------------------
+# 二、工作流阶段
+# -----------------------------------------------------------------------------
+workflow:
+  phases:
+    - id: P0_data_ready
+      name: 数据就绪
+      description: 执行 refresh，确认 manifest 中各标的 status=ok
+      command: python refresh_turtle_data.py
+      checklist:
+        - data/turtle/manifest.json 存在
+        - 主标的 smic_hk last_complete_date 为最近交易日
+
+    - id: P1_strategy_impl
+      name: 实现海龟策略
+      description: 按 turtle_strategy.spec 实现 TurtleStrategy
+      outputs:
+        - quant_backtest/strategies/turtle.py
+      checklist:
+        - 单元测试：已知 OHLC 序列信号与 spec 示例一致
+        - entry_period > exit_period 校验
+
+    - id: P2_api_layer
+      name: 回测 API 层
+      description: 封装 run_turtle_backtest(spec_params) → JSON
+      command: python run_turtle_dashboard.py --serve
+      outputs:
+        - POST /api/backtest 响应 schema 见下文
+
+    - id: P3_ui_shell
+      name: 看板 UI 骨架
+      description: 顶栏 + 侧栏参数 + 主图区 + 指标卡片 + 交易表
+      reference: TASK3/docs/ma_cross_strategy_mockup.html
+
+    - id: P4_charts
+      name: 图表联动
+      description: ECharts K 线、Donchian、买卖点、净值、ATR
+      checklist:
+        - dataZoom 与日期选择器双向同步
+        - 买卖标记 tooltip 含 entry/exit_reason/return_pct
+
+    - id: P5_refresh_integration
+      name: 数据刷新集成
+      description: 侧栏「刷新数据」调用 refresh CLI 或 /api/refresh
+      checklist:
+        - 刷新后 manifest 更新，标的下拉显示新截至日
+        - 自动触发当前参数回测
+
+# -----------------------------------------------------------------------------
+# 三、信息架构（页面布局）
+# -----------------------------------------------------------------------------
+layout:
+  theme:
+    inherit_from: TASK3/docs/ma_cross_strategy_mockup.html
+    mode: dark
+    accent: "#26a69a"                  # 海龟/趋势绿
+    font: PingFang SC, Microsoft YaHei
+
+  regions:
+    topbar:
+      height: 48px
+      items:
+        - logo: "Turtle Lab"
+        - subtitle: "海龟交易法则演示"
+        - data_manifest_badge: "数据截至 {last_complete_date}"
+        - nav: [看板, 策略说明, 数据管理]
+
+    sidebar:
+      width: 280px
+      sections:
+        - id: instrument
+          title: 标的
+          controls:
+            - type: select
+              id: stock_id
+              source: manifest.stocks
+              label: 股票
+              default: smic_hk
+
+            - type: data_version
+              id: data_end_date
+              label: 数据版本
+              source: manifest.stocks[].last_complete_date
+              readonly: true
+              hint: 由「刷新数据」更新
+
+        - id: date_window
+          title: 回测时段
+          controls:
+            - type: date
+              id: start_date
+              label: 开始日期
+              default: null              # null = 数据起始 + warmup
+            - type: date
+              id: end_date
+              label: 结束日期
+              default: null              # null = last_complete_date
+            - type: preset_buttons
+              options: [近1年, 近2年, 全部]
+
+        - id: turtle_params
+          title: 海龟参数
+          controls:
+            - type: radio
+              id: system
+              options: [system_1, system_2, custom]
+              on_change: apply_system_preset
+            - type: number
+              id: entry_period
+              bind: turtle_strategy.spec#params_schema.entry_period
+            - type: number
+              id: exit_period
+              bind: turtle_strategy.spec#params_schema.exit_period
+            - type: number
+              id: atr_period
+              bind: turtle_strategy.spec#params_schema.atr_period
+            - type: slider
+              id: stop_n_multiplier
+              bind: turtle_strategy.spec#params_schema.stop_n_multiplier
+            - type: checkbox
+              id: enable_short
+              default: false
+              visible: false             # v1 隐藏
+
+        - id: engine
+          title: 回测引擎
+          controls:
+            - type: number
+              id: initial_capital
+              default: 100000
+            - type: number
+              id: commission_rate
+              default: 0.0003
+              format: pct
+            - type: number
+              id: slippage_rate
+              default: 0.0005
+              format: pct
+
+        - id: actions
+          controls:
+            - type: button
+              id: run_backtest
+              label: 运行回测
+              primary: true
+            - type: button
+              id: refresh_data
+              label: 刷新数据
+              icon: sync
+            - type: button
+              id: export_report
+              label: 导出 JSON
+
+    main:
+      rows:
+        - id: metrics_row
+          height: 88px
+          components: metric_cards
+
+        - id: chart_primary
+          height: 420px
+          title: K 线 · Donchian 通道 · 交易点位
+          chart: kline_donchian_trades
+
+        - id: chart_secondary
+          height: 180px
+          split: [equity_curve, atr_panel]
+
+        - id: trades_table
+          height: 240px
+          title: 交易明细
+          columns: trades_schema from turtle_strategy.spec
+
+# -----------------------------------------------------------------------------
+# 四、指标卡片
+# -----------------------------------------------------------------------------
+metric_cards:
+  - id: cumulative_return
+    label: 策略累计收益
+    source: metrics.cumulative_return_pct
+    unit: "%"
+    compare: metrics.buy_hold_return_pct
+    compare_label: vs 买入持有
+
+  - id: sharpe
+    label: 夏普比率
+    source: metrics.sharpe_ratio
+    format: "0.00"
+
+  - id: max_drawdown
+    label: 最大回撤
+    source: metrics.max_drawdown_pct
+    unit: "%"
+    lower_is_better: true
+
+  - id: win_rate
+    label: 胜率
+    source: metrics.win_rate_pct
+    unit: "%"
+
+  - id: total_trades
+    label: 交易次数
+    source: metrics.total_trades
+
+  - id: profit_factor
+    label: 盈亏比
+    source: metrics.profit_factor
+
+# -----------------------------------------------------------------------------
+# 五、可视化规范
+# -----------------------------------------------------------------------------
+visualization:
+  library: echarts
+  version: "5.5+"
+
+  charts:
+    kline_donchian_trades:
+      type: candlestick
+      x_axis: date
+      series:
+        - id: kline
+          ohlc: [open, close, low, high]
+        - id: donchian_entry_high
+          type: line
+          color: "#5b8def"
+          dash: dashed
+          name: 入场上轨
+        - id: donchian_exit_low
+          type: line
+          color: "#ef5350"
+          dash: dotted
+          name: 出场下轨
+        - id: stop_price
+          type: line
+          color: "#f5a623"
+          name: 止损线
+          show: when_in_position
+        - id: buy_markers
+          type: scatter
+          symbol: triangle
+          color: "#26a69a"
+          name: 买入
+          data: trades[entry_date, entry_price]
+        - id: sell_markers
+          type: scatter
+          symbol: pin
+          color: "#ef5350"
+          name: 卖出
+          data: trades[exit_date, exit_price]
+
+      tooltip:
+        fields: [date, open, high, low, close, donchian_entry_high, atr_n]
+
+      data_zoom:
+        enabled: true
+        sync_with: date_window_controls
+
+    equity_curve:
+      type: line
+      series:
+        - id: strategy_equity
+          name: 策略净值
+          color: "#26a69a"
+        - id: buy_hold_equity
+          name: 买入持有
+          color: "#90a4ae"
+          dash: dashed
+      y_axis: normalized              # 初始=1 或绝对金额可选
+
+    atr_panel:
+      type: line
+      series:
+        - id: atr_n
+          name: ATR(N)
+          color: "#00897b"
+      y_axis_label: 波动（N）
+
+  color_legend:
+    buy: "#26a69a"
+    sell: "#ef5350"
+    donchian_entry: "#5b8def"
+    donchian_exit: "#ef5350"
+    stop: "#f5a623"
+
+# -----------------------------------------------------------------------------
+# 六、API 契约（轻后端 v1）
+# -----------------------------------------------------------------------------
+api:
+  base_path: /api
+  cors: true
+
+  endpoints:
+    GET /manifest:
+      description: 返回 data/turtle/manifest.json
+      response: manifest_schema
+
+    POST /refresh:
+      description: 触发 refresh_turtle_data.py（异步或同步）
+      body:
+        stock_id: string | null        # null = 全部
+        full: bool
+      response:
+        refreshed_at: datetime
+        stocks: [{ stock_id, last_complete_date, status }]
+
+    POST /backtest:
+      description: 执行单次海龟回测
+      body:
+        stock_id: string
+        start_date: date | null
+        end_date: date | null
+        strategy:
+          type: turtle
+          params:
+            system: enum
+            entry_period: int
+            exit_period: int
+            atr_period: int
+            stop_n_multiplier: float
+        engine:
+          initial_capital: float
+          commission_rate: float
+          slippage_rate: float
+          position_lag: int
+      response:
+        scenario_id: string
+        stock: { stock_id, name, code, currency }
+        date_window: { start, end, rows }
+        params: object
+        metrics: object
+        series:
+          dates: string[]
+          ohlc: float[][]
+          donchian_entry_high: float[]
+          donchian_exit_low: float[]
+          atr_n: float[]
+          stop_price: float[]
+          equity: float[]
+          bh_equity: float[]
+        trades: trades[]
+        signals:
+          buy_dates: string[]
+          sell_dates: string[]
+
+    GET /backtest/cache/{scenario_id}:
+      description: 读取磁盘缓存（可选）
+
+  static_mode:
+    description: 无后端时，预生成 demo JSON 置于 turtle_dashboard/static/
+    files:
+      - demo_smic_hk_s1.json
+      - manifest.json
+
+# -----------------------------------------------------------------------------
+# 七、交互流程
+# -----------------------------------------------------------------------------
+user_flows:
+  change_stock:
+    steps:
+      - 用户切换 stock_id
+      - 读取 manifest 更新 data_end_date 上限
+      - 若 end_date > last_complete_date 则钳制
+      - POST /backtest
+      - 刷新 metrics + 三图 + 交易表
+
+  change_date_range:
+    steps:
+      - 用户修改 start/end 或点预设
+      - 校验 start < end，区间 >= min_warmup_bars
+      - POST /backtest
+      - dataZoom 定位到新区间
+
+  change_turtle_params:
+    steps:
+      - 切换 system_1/system_2 自动填充 preset
+      - custom 模式下手动改 entry/exit/atr/stop
+      - 前端校验 constraints，失败则禁用「运行回测」并显示错误
+      - POST /backtest
+
+  refresh_data:
+    steps:
+      - 点击「刷新数据」，按钮 loading
+      - POST /refresh 或 spawn refresh_turtle_data.py
+      - 更新 manifest badge 与各标的 last_complete_date
+      - 若当前 end_date 为旧「截至日」，可选自动延至最新
+      - 自动重跑回测
+
+# -----------------------------------------------------------------------------
+# 八、默认配置
+# -----------------------------------------------------------------------------
+defaults:
+  stock_id: smic_hk
+  date_window:
+    start_date: null
+    end_date: null                     # 使用 manifest last_complete_date
+
+  strategy:
+    inherit_from: spec/turtle_strategy.spec.yaml#scenarios.primary.strategy
+
+  engine:
+    inherit_from: spec/backtest.spec.yaml#defaults.engine
+
+  ui:
+    auto_run_on_load: true
+    debounce_ms: 300                   # 参数滑块防抖
+    locale: zh-CN
+
+# -----------------------------------------------------------------------------
+# 九、文件与目录
+# -----------------------------------------------------------------------------
+paths:
+  dashboard_root: turtle_dashboard/
+  manifest: data/turtle/manifest.json
+  backtest_cache: data/turtle/backtest_cache/
+  cache_naming: "{stock_id}_{system}_{entry}_{exit}_{atr}_{start}_{end}.json"
+  figures_export: turtle_dashboard/exports/
+
+naming:
+  mockup: turtle_dashboard/docs/turtle_dashboard_mockup.html
+  report_json: turtle_dashboard/exports/backtest_{timestamp}.json
+  screenshot: turtle_dashboard/exports/chart_{stock_id}_{timestamp}.png
+
+# -----------------------------------------------------------------------------
+# 十、验收标准
+# -----------------------------------------------------------------------------
+acceptance:
+  functional:
+    - 切换 4+ 标的均可回测且不报错
+    - 系统一预设 entry=20 exit=10 与 spec 一致
+    - 主图可见买卖点与 Donchian 线
+    - 刷新数据后 manifest 截至日更新
+    - 结束日期不可选超过 last_complete_date
+
+  performance:
+    - 单次回测（1 年日线）< 2s（本地 Python）
+    - 前端重绘 < 500ms
+
+  consistency:
+    - 与 quant_backtest 引擎 metrics 定义同 backtest.spec.yaml
+    - ATR 算法与 TASK2 indicators.py Wilder 平滑一致
+
+# -----------------------------------------------------------------------------
+# 十一、扩展
+# -----------------------------------------------------------------------------
+extensions:
+  - id: param_scan_ui
+    description: 看板内嵌 entry×exit 热力图（复用 ParameterScanner）
+    enabled: false
+
+  - id: compare_systems
+    description: 系统一/二净值叠加对比模式
+    enabled: false
+
+  - id: pdf_export
+    description: 导出回测报告 PDF（类似 TASK3/generate_pdf.py）
+    enabled: false
+
+  - id: websocket_live
+    description: 盘中 incomplete bar 预览（非 v1）
+    enabled: false

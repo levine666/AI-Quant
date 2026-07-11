@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI-Quant — 个人量化作品集合</title>
+  <link rel="stylesheet" href="shared/css/platform.css" />
+  <style>
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 20px 40px; }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .brand { font-size: 22px; font-weight: 800; letter-spacing: -.02em; }
+    .brand span { color: var(--accent); }
+
+    .hero {
+      margin-bottom: 28px;
+      padding: 28px 24px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    .hero h1 { font-size: 26px; margin-bottom: 8px; }
+    .hero p { color: var(--muted); font-size: 14px; line-height: 1.6; max-width: 640px; }
+    .hero-stats { margin-top: 14px; font-size: 13px; color: var(--muted); }
+    .hero-stats strong { color: var(--text); }
+
+    .filters {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .filters button {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .filters button.active {
+      color: var(--text);
+      border-color: var(--accent);
+      background: rgba(91,141,239,.1);
+    }
+
+    .section-title {
+      font-size: 13px;
+      color: var(--muted);
+      margin: 24px 0 12px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .app-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .app-card {
+      display: block;
+      text-decoration: none;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 16px 14px;
+      position: relative;
+      overflow: hidden;
+      transition: transform .15s, border-color .15s;
+    }
+    .app-card:not(.disabled):hover {
+      transform: translateY(-2px);
+      border-color: var(--accent);
+    }
+    .app-card.disabled { opacity: .55; cursor: default; }
+    .card-accent {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: var(--accent);
+    }
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .card-icon { font-size: 22px; }
+    .status {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+    }
+    .status.live { color: var(--strategy); border-color: rgba(38,166,154,.4); }
+    .status.beta { color: var(--research); border-color: rgba(245,166,35,.4); }
+    .status.planned { color: var(--muted); }
+
+    .app-card h3 { font-size: 16px; margin-bottom: 2px; }
+    .subtitle { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+    .desc { font-size: 12px; color: var(--muted); line-height: 1.5; min-height: 36px; }
+    .tags { display: flex; flex-wrap: wrap; gap: 4px; margin: 10px 0; }
+    .tag {
+      font-size: 10px;
+      padding: 1px 7px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .card-foot {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .enter { color: var(--accent); }
+
+    .dev-box {
+      margin-top: 32px;
+      padding: 16px;
+      background: rgba(91,141,239,.06);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .dev-box code {
+      background: rgba(0,0,0,.25);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--text);
+    }
+    .empty { color: var(--muted); padding: 24px; text-align: center; grid-column: 1 / -1; }
+
+    @media (max-width: 900px) {
+      .app-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 560px) {
+      .app-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="topbar">
+      <div class="brand">AI-<span>Quant</span></div>
+      <nav class="platform-nav">
+        <a href="./" class="active home">首页</a>
+        <a href="https://github.com/levine666/AI-Quant" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </header>
+
+    <section class="hero">
+      <h1>个人量化研究与策略作品集合</h1>
+      <p>
+        收录 A/H 股对比、技术指标实验与策略回测看板。每个模块对应一次课程作业或独立研究，持续追加新策略。
+      </p>
+      <div class="hero-stats" id="heroStats">加载中…</div>
+    </section>
+
+    <div class="filters">
+      <button type="button" data-filter="all" class="active">全部</button>
+      <button type="button" data-filter="research">研究</button>
+      <button type="button" data-filter="indicators">指标</button>
+      <button type="button" data-filter="strategy">策略</button>
+    </div>
+
+    <div class="section-title">作品</div>
+    <div class="app-grid" id="appGrid"></div>
+
+    <div id="plannedSection">
+      <div class="section-title">路线图</div>
+      <div class="app-grid" id="plannedGrid"></div>
+    </div>
+
+    <div class="dev-box" id="dev">
+      <strong>本地开发</strong>：请勿直接双击 HTML。在项目根目录执行
+      <code>python3 AI-Quant/run.py serve</code>，浏览器打开
+      <code>http://127.0.0.1:8080/</code>。
+      海龟法则完整 Python 引擎：<code>python3 AI-Quant/run.py serve --api</code>
+    </div>
+  </div>
+
+  <footer class="disclaimer">仅供学习研究，不构成投资建议 · AI-Quant v1.0</footer>
+  <script src="shared/js/home.js"></script>
+</body>
+</html>

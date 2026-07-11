@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Turtle Lab — 海龟交易法则</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b0f17;
+      --sidebar: #0f1520;
+      --panel: #121826;
+      --border: #243049;
+      --text: #e8edf7;
+      --muted: #8b98b3;
+      --accent: #26a69a;
+      --up: #ef5350;
+      --down: #26a69a;
+      --warn: #f5a623;
+      --fs-xs: 10px;
+      --fs-sm: 11px;
+      --fs-base: 12px;
+      --fs-md: 13px;
+      --fs-lg: 14px;
+      --radius: 10px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: var(--fs-base);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .dry-banner {
+      background: linear-gradient(90deg, rgba(38,166,154,.12), rgba(245,166,35,.1));
+      border-bottom: 1px solid rgba(38,166,154,.35);
+      padding: 6px 16px;
+      font-size: var(--fs-sm);
+      color: var(--warn);
+      text-align: center;
+    }
+
+    .topbar {
+      height: 48px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      background: var(--panel);
+      gap: 12px;
+    }
+    .logo { font-size: var(--fs-lg); font-weight: 700; }
+    .logo span { color: var(--accent); }
+    .topbar-meta { font-size: var(--fs-sm); color: var(--muted); flex: 1; text-align: center; }
+    .data-badge {
+      font-size: var(--fs-xs);
+      padding: 3px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(38,166,154,.4);
+      color: var(--accent);
+      background: rgba(38,166,154,.08);
+    }
+    .topbar-nav { display: flex; gap: 6px; }
+    .topbar-nav a {
+      font-size: var(--fs-sm);
+      color: var(--muted);
+      text-decoration: none;
+      padding: 5px 12px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+    }
+    .topbar-nav a.active { color: var(--text); border-color: var(--accent); background: rgba(38,166,154,.1); }
+
+    .layout { display: flex; flex: 1; min-height: 0; }
+
+    .sidebar {
+      width: 280px;
+      background: var(--sidebar);
+      border-right: 1px solid var(--border);
+      padding: 14px;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+    .section-title {
+      font-size: var(--fs-xs);
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin: 14px 0 6px;
+    }
+    .section-title:first-child { margin-top: 0; }
+    .field { margin-bottom: 10px; }
+    .field label {
+      display: block;
+      font-size: var(--fs-sm);
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    select, input[type="date"], input[type="number"] {
+      width: 100%;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 8px;
+      border-radius: 6px;
+      font-size: var(--fs-base);
+    }
+    input[type="range"] { width: 100%; accent-color: var(--accent); margin: 4px 0; }
+    .range-row { display: flex; justify-content: space-between; font-size: var(--fs-xs); color: var(--muted); }
+    .range-val { color: var(--accent); font-weight: 600; }
+    .hint { font-size: var(--fs-xs); color: var(--muted); line-height: 1.45; margin-top: 4px; }
+    .cost-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .preset-row { display: flex; gap: 6px; margin-top: 4px; }
+    .preset-row button {
+      flex: 1;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 5px 0;
+      border-radius: 6px;
+      font-size: var(--fs-xs);
+      cursor: pointer;
+    }
+    .preset-row button:hover { border-color: var(--accent); color: var(--text); }
+
+    .radio-group { display: flex; flex-direction: column; gap: 6px; }
+    .radio-group label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: var(--fs-sm);
+      color: var(--text);
+      cursor: pointer;
+      padding: 6px 8px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--panel);
+    }
+    .radio-group label:has(input:checked) {
+      border-color: var(--accent);
+      background: rgba(38,166,154,.08);
+    }
+    .radio-group input { accent-color: var(--accent); }
+
+    .param-error { font-size: var(--fs-xs); color: #ef5350; min-height: 16px; margin: 4px 0; }
+
+    .btn {
+      background: rgba(38,166,154,.12);
+      border: 1px solid var(--accent);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: var(--fs-sm);
+      cursor: pointer;
+      width: 100%;
+      margin-top: 6px;
+    }
+    .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .btn-secondary { background: transparent; }
+    .btn.spinning { opacity: .6; pointer-events: none; }
+
+    .content { flex: 1; padding: 14px 16px; overflow-y: auto; }
+
+    .stock-banner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      font-size: var(--fs-sm);
+      color: var(--muted);
+    }
+    .stock-banner .name { font-size: var(--fs-lg); font-weight: 600; color: var(--text); }
+    .tag {
+      font-size: var(--fs-xs);
+      padding: 1px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+    }
+    .tag-hk { border-color: #c88719; color: #e0a030; }
+    .tag-a { border-color: #5b8def; color: #5b8def; }
+    .tag-strat { border-color: var(--accent); color: var(--accent); }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .metric {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 12px;
+    }
+    .metric .label { font-size: var(--fs-xs); color: var(--muted); margin-bottom: 4px; }
+    .metric .value { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .metric .sub { font-size: var(--fs-xs); color: var(--muted); margin-top: 2px; }
+    .metric.positive .value { color: var(--up); }
+    .metric.negative .value { color: var(--down); }
+    .metric.neutral .value { color: var(--accent); }
+
+    .chart-block {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 12px 4px;
+      margin-bottom: 14px;
+    }
+    .chart-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 8px;
+      gap: 8px;
+    }
+    .chart-head h3 { font-size: var(--fs-md); font-weight: 600; }
+    .chart-head .fig-no { color: var(--accent); font-size: var(--fs-xs); font-weight: 700; margin-right: 4px; }
+    .chart-head .caption { font-size: var(--fs-xs); color: var(--muted); }
+    .chart { width: 100%; height: 360px; }
+    .chart.mid { height: 180px; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--fs-sm);
+    }
+    th, td {
+      padding: 7px 8px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+    }
+    th { color: var(--muted); font-weight: 500; font-size: var(--fs-xs); }
+    td.num { font-variant-numeric: tabular-nums; }
+    td.empty { color: var(--muted); text-align: center; padding: 20px; }
+    .sig-buy { color: var(--up); }
+    .sig-sell { color: var(--down); }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: rgba(18,24,38,.96);
+      border: 1px solid var(--accent);
+      color: var(--text);
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: var(--fs-sm);
+      opacity: 0;
+      transition: all .25s ease;
+      z-index: 100;
+      pointer-events: none;
+    }
+    .toast.error { border-color: #ef5350; }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--muted); display: inline-block; margin-right: 6px;
+    }
+    .status-dot.live { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+
+    footer {
+      padding: 10px 16px;
+      border-top: 1px solid var(--border);
+      font-size: var(--fs-xs);
+      color: var(--muted);
+      text-align: center;
+    }
+
+    @media (max-width: 1200px) {
+      .metrics { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 900px) {
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 768px) {
+      .layout { flex-direction: column; }
+      .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+  <div class="dry-banner" style="color:var(--accent);border-color:rgba(38,166,154,.35)">
+    <span class="status-dot" id="statusDot"></span>
+    Python 回测引擎 · quant_backtest · 本地 CSV · AkShare 增量刷新
+  </div>
+
+  <header class="topbar">
+    <div class="logo">🐢 <span>Turtle</span> Lab</div>
+    <div class="topbar-meta">海龟交易法则 · Donchian 突破 + ATR 止损 · 含手续费万三 + 滑点 5bp</div>
+    <span class="data-badge" id="dataBadge">数据截至 —</span>
+    <nav class="topbar-nav">
+      <a href="../TASK3/docs/ma_cross_strategy_mockup.html">Strategy Lab</a>
+      <a href="#" class="active">Turtle Lab</a>
+    </nav>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="section-title">标的</div>
+      <div class="field">
+        <label>股票</label>
+        <select id="stockSelect"></select>
+      </div>
+
+      <div class="section-title">回测时段</div>
+      <div class="field">
+        <label>开始日期</label>
+        <input type="date" id="startDate" />
+      </div>
+      <div class="field">
+        <label>结束日期</label>
+        <input type="date" id="endDate" />
+      </div>
+      <div class="preset-row">
+        <button type="button" data-preset="1y">近1年</button>
+        <button type="button" data-preset="2y">近2年</button>
+        <button type="button" data-preset="all">全部</button>
+      </div>
+
+      <div class="section-title">海龟系统</div>
+      <div class="radio-group">
+        <label><input type="radio" name="system" value="system_1" checked /> 系统一 · 20/10</label>
+        <label><input type="radio" name="system" value="system_2" /> 系统二 · 55/20</label>
+        <label><input type="radio" name="system" value="custom" id="systemCustom" /> 自定义参数</label>
+      </div>
+
+      <div class="section-title">参数微调</div>
+      <div class="field">
+        <label>入场周期（日）</label>
+        <input type="number" id="entryPeriod" min="5" max="120" value="20" />
+      </div>
+      <div class="field">
+        <label>出场周期（日）</label>
+        <input type="number" id="exitPeriod" min="3" max="60" value="10" />
+      </div>
+      <div class="field">
+        <label>ATR 周期 N</label>
+        <input type="number" id="atrPeriod" min="5" max="60" value="20" />
+      </div>
+      <div class="field">
+        <label>止损倍数 ×N</label>
+        <input type="range" id="stopN" min="0.5" max="5" step="0.5" value="2" />
+        <div class="range-row"><span>0.5</span><span class="range-val" id="stopNVal">2.0</span><span>5.0</span></div>
+      </div>
+      <p class="hint">突破入场上轨 → 次日开盘买入<br/>跌破出场下轨或 2N 止损 → 当日收盘卖出</p>
+      <div class="param-error" id="paramError"></div>
+
+      <div class="section-title">回测引擎</div>
+      <div class="cost-grid">
+        <div class="field">
+          <label>初始资金</label>
+          <input type="number" id="initialCapital" value="100000" step="1000" />
+        </div>
+        <div class="field">
+          <label>手续费（单边）</label>
+          <input type="number" id="commission" value="0.0003" step="0.0001" />
+        </div>
+      </div>
+      <div class="field">
+        <label>滑点</label>
+        <input type="number" id="slippage" value="0.0005" step="0.0001" />
+      </div>
+
+      <button class="btn btn-primary" type="button" id="runBtn">▶ 运行回测</button>
+      <button class="btn btn-secondary" type="button" id="refreshBtn">↻ 刷新数据</button>
+    </aside>
+
+    <main class="content">
+      <div class="stock-banner" id="stockBanner">
+        <span class="name">—</span>
+      </div>
+
+      <div class="metrics" id="metrics"></div>
+
+      <div class="chart-block">
+        <div class="chart-head">
+          <h3><span class="fig-no">图1</span>K 线 · Donchian 通道 · 交易点位</h3>
+          <span class="caption" id="chartCaption">—</span>
+        </div>
+        <div id="chartKline" class="chart"></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="chart-block">
+          <div class="chart-head">
+            <h3><span class="fig-no">图2</span>策略净值 vs 买入持有</h3>
+            <span class="caption">含手续费与滑点</span>
+          </div>
+          <div id="chartEquity" class="chart mid"></div>
+        </div>
+        <div class="chart-block">
+          <div class="chart-head">
+            <h3><span class="fig-no">图3</span>ATR(N) 波动</h3>
+            <span class="caption">Wilder 平滑</span>
+          </div>
+          <div id="chartAtr" class="chart mid"></div>
+        </div>
+      </div>
+
+      <div class="chart-block">
+        <div class="chart-head">
+          <h3>交易明细</h3>
+          <span class="caption">最近 12 笔</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>买入日</th>
+              <th>卖出日</th>
+              <th>买入价</th>
+              <th>卖出价</th>
+              <th>原因</th>
+              <th>收益率</th>
+            </tr>
+          </thead>
+          <tbody id="tradesBody"></tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <footer>仅供学习，不构成投资建议 · Turtle Lab v1.0 · spec/turtle_dashboard.spec.yaml</footer>
+  <div class="toast" id="toast"></div>
+
+  <script src="static/app.js"></script>
+</body>
+</html>

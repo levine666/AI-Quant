@@ -1,0 +1,188 @@
+{
+  "meta": {
+    "platform": "AI-Quant",
+    "version": "1.0.0",
+    "author": "张利伟",
+    "site_url": "https://levine666.github.io/AI-Quant/",
+    "repo_url": "https://github.com/levine666/AI-Quant",
+    "data_updated": "2026-07-11T21:05:07"
+  },
+  "apps": [
+    {
+      "app_id": "ah_compare",
+      "order": 10,
+      "title": "中芯国际 A/H 对比",
+      "subtitle": "TASK1 · 跨市场研究",
+      "type": "research",
+      "status": "live",
+      "task_id": "TASK1",
+      "href": "./ah-compare/",
+      "href_legacy": "../dashboard.html",
+      "icon": "📊",
+      "accent_color": "#f5a623",
+      "tags": [
+        "A/H股",
+        "半导体",
+        "溢价分析"
+      ],
+      "description": "对比 688981 与 00981 价格走势、溢价率与基本面对照。",
+      "backend": "static",
+      "data": {
+        "sync_paths": [
+          "data/smic_compare.json",
+          "data/stock_data.js"
+        ]
+      },
+      "specs": [],
+      "added_at": "2026-07-04"
+    },
+    {
+      "app_id": "indicator_lab",
+      "order": 20,
+      "title": "Indicator Lab",
+      "subtitle": "TASK2 · 技术指标实验",
+      "type": "indicators",
+      "status": "live",
+      "task_id": "TASK2",
+      "href": "./indicator-lab/",
+      "icon": "📈",
+      "accent_color": "#7e57c2",
+      "tags": [
+        "RSI",
+        "MACD",
+        "布林带",
+        "ATR"
+      ],
+      "description": "切换标的与参数，浏览器端实时计算四类指标并重绘图表。",
+      "backend": "static",
+      "data": {
+        "config": "indicator-lab/assets/stocks.json",
+        "sync_glob": "indicator-lab/data/*.csv"
+      },
+      "specs": [
+        "TASK2/task02_indicator_lab/spec/indicator_lab.spec.yaml"
+      ],
+      "engine_ref": {
+        "python": "TASK2/task02_indicator_lab/scripts/indicators.py",
+        "js": "indicator-lab/js/indicators.js"
+      },
+      "added_at": "2026-07-08"
+    },
+    {
+      "app_id": "strategy_lab_ma",
+      "order": 30,
+      "title": "Strategy Lab",
+      "subtitle": "TASK3 · 双均线交叉",
+      "type": "strategy",
+      "status": "live",
+      "task_id": "TASK3",
+      "href": "./strategy-lab/",
+      "icon": "⚡",
+      "accent_color": "#ef5350",
+      "tags": [
+        "MA交叉",
+        "趋势跟踪",
+        "参数扫描"
+      ],
+      "description": "MA5/15 金叉死叉回测，含手续费滑点、净值对比与参数热力图。",
+      "backend": "static",
+      "data": {
+        "config": "strategy-lab/assets/config.json",
+        "sync_glob": "strategy-lab/data/*.csv"
+      },
+      "specs": [
+        "spec/backtest.spec.yaml"
+      ],
+      "engine_ref": {
+        "python": "quant_backtest/strategies/ma_cross.py",
+        "js": "strategy-lab/js/backtest.js"
+      },
+      "metrics_preview": {
+        "enabled": false,
+        "stock_id": "smic_hk",
+        "snapshot_path": "strategy-lab/assets/snapshot.json"
+      },
+      "added_at": "2026-07-09"
+    },
+    {
+      "app_id": "turtle_lab",
+      "order": 40,
+      "title": "Turtle Lab",
+      "subtitle": "海龟交易法则",
+      "type": "strategy",
+      "status": "beta",
+      "task_id": "TURTLE_DASHBOARD",
+      "href": "./turtle-lab/",
+      "icon": "🐢",
+      "accent_color": "#26a69a",
+      "tags": [
+        "Donchian",
+        "ATR",
+        "突破",
+        "趋势跟踪"
+      ],
+      "description": "经典海龟系统一/二，Donchian 通道入场、ATR 止损，K 线标注买卖点。",
+      "backend": "hybrid",
+      "backend_notes": "GitHub Pages：静态 JS 引擎（turtle_engine.js）\n本地完整版：python3 AI-Quant/run.py serve --api\n",
+      "data": {
+        "manifest": "data/turtle/manifest.json",
+        "sync_glob": "turtle-lab/data/*.csv"
+      },
+      "specs": [
+        "spec/turtle_dashboard.spec.yaml",
+        "spec/turtle_strategy.spec.yaml",
+        "spec/turtle_data_refresh.spec.yaml"
+      ],
+      "engine_ref": {
+        "python": "quant_backtest/strategies/turtle.py",
+        "js": "turtle-lab/js/turtle_engine.js"
+      },
+      "params_presets": {
+        "system_1": {
+          "entry_period": 20,
+          "exit_period": 10,
+          "atr_period": 20,
+          "stop_n_multiplier": 2.0
+        },
+        "system_2": {
+          "entry_period": 55,
+          "exit_period": 20,
+          "atr_period": 20,
+          "stop_n_multiplier": 2.0
+        }
+      },
+      "added_at": "2026-07-11"
+    }
+  ],
+  "planned_apps": [
+    {
+      "app_id": "macd_cross",
+      "order": 50,
+      "title": "MACD 金叉策略",
+      "subtitle": "规划中",
+      "type": "strategy",
+      "status": "planned",
+      "tags": [
+        "MACD",
+        "趋势"
+      ],
+      "description": "DIF/DEA 金叉死叉策略回测看板。",
+      "spec_ref": "spec/backtest.spec.yaml#strategies.macd_cross"
+    },
+    {
+      "app_id": "rsi_filter_ma",
+      "order": 60,
+      "title": "MA + RSI 过滤",
+      "subtitle": "规划中",
+      "type": "strategy",
+      "status": "planned",
+      "tags": [
+        "MA",
+        "RSI",
+        "过滤器"
+      ],
+      "description": "双均线信号叠加 RSI 超买超卖过滤。"
+    }
+  ],
+  "generated_at": "2026-07-11T21:23:27"
+}

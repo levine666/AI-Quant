@@ -1,0 +1,262 @@
+# =============================================================================
+# 海龟看板 · 日线数据增量刷新规范 (Turtle Dashboard Data Refresh)
+# =============================================================================
+# 版本: 1.0.0
+# 用途: 每日补充最新完整交易日数据，供看板「数据截至」选择与回测
+# 继承: spec/data_fetch.spec.yaml · spec/backtest.spec.yaml#stocks
+# 执行: python refresh_turtle_data.py [--stock-id ID] [--validate-only]
+# =============================================================================
+
+spec:
+  name: ai-quant-turtle-data-refresh
+  version: "1.0.0"
+  updated_at: "2026-07-11"
+  task_id: TURTLE_DASHBOARD
+  title: 海龟看板数据日更
+  maintainer: 张利伟
+  parent_specs:
+    - spec/data_fetch.spec.yaml
+    - spec/backtest.spec.yaml
+
+# -----------------------------------------------------------------------------
+# 一、目标
+# -----------------------------------------------------------------------------
+objectives:
+  primary: 每个交易日收盘后（或次日开盘前）拉取最新完整 OHLCV，合并至本地 CSV
+  user_value: |
+    看板「数据版本」下拉可选「截至 YYYY-MM-DD（完整）」，
+    用户始终能用最新可用数据进行海龟回测，无需手动改文件。
+  deliverables:
+    - refresh_turtle_data.py
+    - data/turtle/manifest.json              # 各标的最新日期、行数、校验状态
+    - data/turtle/refresh_log.jsonl          # 每次刷新审计日志
+    - data/turtle/snapshots/                 # 可选：按日落盘快照
+
+# -----------------------------------------------------------------------------
+# 二、工作流
+# -----------------------------------------------------------------------------
+workflow:
+  phases:
+    - id: P1_check_market_calendar
+      name: 检查交易日历
+      description: 判断目标市场当日是否已收盘、是否为交易日
+      checklist:
+        - A 股：排除周末与法定节假日（可用 exchange_calendars 或 AkShare 工具接口）
+        - 港股：HKEX 日历独立判断
+        - 非交易日跳过 fetch，manifest 状态保持 last_complete_date
+
+    - id: P2_incremental_fetch
+      name: 增量拉取
+      description: 从本地 CSV 末行 date+1 拉至今日（或最近完整交易日）
+      command: python refresh_turtle_data.py
+      outputs:
+        - data/raw/{stock_id}/daily_{code}_{adjust}.csv  # 合并更新
+        - data/turtle/manifest.json
+
+    - id: P3_validate_merge
+      name: 校验与去重
+      description: 合并后按 date 去重、排序，执行 validation 规则
+      command: python refresh_turtle_data.py --validate-only
+      checklist:
+        - 无重复 date
+        - high >= low，close > 0
+        - 新增行数 >= 0（非交易日为 0）
+        - 末行 date 写入 manifest.last_complete_date
+
+    - id: P4_publish_manifest
+      name: 发布数据清单
+      description: 更新 manifest 供看板 API / 静态 JSON 读取
+      outputs:
+        - data/turtle/manifest.json
+      fields_updated:
+        - stocks[].last_complete_date
+        - stocks[].row_count
+        - stocks[].validated_at
+        - stocks[].data_path
+        - global.refreshed_at
+
+    - id: P5_notify_dashboard
+      name: 通知看板（可选）
+      description: 若后端运行，触发缓存失效；纯静态看板依赖用户刷新页面
+      enabled: false
+
+# -----------------------------------------------------------------------------
+# 三、标的池（与 backtest.spec 对齐，含港股）
+# -----------------------------------------------------------------------------
+stocks:
+  inherit_from: spec/backtest.spec.yaml#stocks
+  # 看板额外登记 manifest 字段
+  manifest_fields:
+    - stock_id
+    - name
+    - code
+    - market
+    - currency
+    - data_path
+    - last_complete_date
+    - row_count
+    - date_range_start
+    - date_range_end
+    - adjust
+    - source
+
+  market_fetch:
+    A股:
+      provider: akshare
+      interface: stock_zh_a_daily
+      symbol_key: akshare_symbol       # 来自 data_fetch.spec stocks
+      adjust: qfq
+
+    港股:
+      provider: akshare
+      interface: stock_hk_daily
+      symbol_key: code                 # 如 "00981"
+      adjust: qfq
+
+# -----------------------------------------------------------------------------
+# 四、增量刷新策略
+# -----------------------------------------------------------------------------
+refresh:
+  mode: incremental                    # incremental | full_rebuild
+
+  incremental:
+    start_from: last_local_date + 1 day
+    end_at: latest_complete_trading_day
+    on_empty_local: full_fetch         # 本地无文件时按 lookback_days 全量拉取
+
+  full_rebuild:
+    lookback_days: 730                 # 约 2 年，满足 55 日系统 + 缓冲
+    trigger: manual                    # CLI --full
+
+  retry:
+    max_attempts: 3
+    delay_seconds: 3
+
+  dedupe:
+    key: date
+    keep: last                         # 重复日期保留最后一次写入
+
+  schedule:
+    # 供 cron / GitHub Actions / 本地 launchd 参考
+    recommended_cron: "30 18 * * 1-5"  # 工作日 18:30（A 股收盘后）
+    hk_extra_cron: "30 17 * * 1-5"     # 港股 16:00 收盘，可选单独任务
+    timezone: Asia/Shanghai
+
+# -----------------------------------------------------------------------------
+# 五、manifest.json Schema
+# -----------------------------------------------------------------------------
+manifest_schema:
+  description: 看板读取的统一数据索引
+  path: data/turtle/manifest.json
+  structure:
+    global:
+      version: string                  # manifest 规范版本
+      refreshed_at: datetime           # ISO8601
+      spec_version: string
+    stocks:
+      - stock_id: string
+        name: string
+        code: string
+        market: string
+        currency: string
+        data_path: string              # 相对仓库根目录
+        adjust: string
+        last_complete_date: date       # 最后一条完整 K 线日期
+        date_range: { start: date, end: date }
+        row_count: int
+        validated_at: datetime
+        status: enum                   # ok | stale | error | pending
+        error_message: string | null
+
+  status_rules:
+    ok: validated_at 在 36h 内且 last_complete_date 为最近完整交易日
+    stale: 超过 2 个交易日未更新
+    error: 校验失败
+    pending: 正在刷新
+
+# -----------------------------------------------------------------------------
+# 六、数据质量校验
+# -----------------------------------------------------------------------------
+validation:
+  inherit_from: spec/data_fetch.spec.yaml#validation
+  turtle_specific:
+    min_rows: 120                      # 至少 120 日（55 系统 + ATR 缓冲）
+    required_columns: [date, open, high, low, close, volume]
+    post_merge_checks:
+      - monotonic_dates_asc
+      - no_duplicate_dates
+      - last_row_is_complete_ohlcv
+    min_new_bars_warning: 0            # 非交易日 0 条为正常
+
+# -----------------------------------------------------------------------------
+# 七、输出与命名
+# -----------------------------------------------------------------------------
+naming:
+  manifest: data/turtle/manifest.json
+  refresh_log: data/turtle/refresh_log.jsonl
+  snapshot_dir: data/turtle/snapshots/{stock_id}_{date}.csv
+  validation_report: data/turtle/validation_{timestamp}.json
+
+output:
+  encoding: utf-8
+  date_format: "%Y-%m-%d"
+  datetime_format: "%Y-%m-%dT%H:%M:%S%z"
+
+# -----------------------------------------------------------------------------
+# 八、看板「数据版本」UI 映射
+# -----------------------------------------------------------------------------
+dashboard_binding:
+  data_version_selector:
+    source: manifest.stocks[]
+    display_template: "{name}（{code}）· 截至 {last_complete_date} · {row_count} 条"
+    default: max(last_complete_date) among selected stock
+    filter:
+      status: [ok, stale]              # error 标的不出现在默认列表
+
+  backtest_end_date:
+    rule: min(user_selected_end, last_complete_date)
+    message_if_exceed: "所选结束日超出可用数据，已自动调整为 {last_complete_date}"
+
+  stale_badge:
+    show_when: status == stale
+    text: "数据可能不是最新，请点击刷新"
+
+# -----------------------------------------------------------------------------
+# 九、CLI 接口
+# -----------------------------------------------------------------------------
+cli:
+  script: refresh_turtle_data.py
+  commands:
+    default:
+      description: 增量刷新 manifest 中全部标的
+      args: []
+
+    --stock-id:
+      description: 仅刷新指定 stock_id
+      example: python refresh_turtle_data.py --stock-id smic_hk
+
+    --full:
+      description: 全量重建（lookback_days）
+      example: python refresh_turtle_data.py --full --stock-id smic_a
+
+    --validate-only:
+      description: 仅校验现有 CSV 并更新 manifest，不拉取
+
+    --dry-run:
+      description: 模拟刷新，不写盘
+
+# -----------------------------------------------------------------------------
+# 十、扩展
+# -----------------------------------------------------------------------------
+extensions:
+  - id: github_actions_daily
+    description: 定时 Action 自动 refresh + commit manifest
+    enabled: false
+
+  - id: tushare_backup
+    description: AkShare 失败时切换 Tushare
+    enabled: false
+
+  - id: snapshot_rollback
+    description: 保留每日快照，支持回滚到历史版本
+    enabled: false

@@ -1,0 +1,369 @@
+# =============================================================================
+# 海龟交易法则策略规范 (Turtle Trading Strategy Specification)
+# =============================================================================
+# 版本: 1.0.0
+# 用途: 定义 Donchian 突破入场、ATR 止损/仓位、回测引擎对接与参数约束
+# 引擎: quant_backtest/（扩展 TurtleStrategy）
+# 关联: spec/turtle_dashboard.spec.yaml · spec/backtest.spec.yaml
+# =============================================================================
+
+spec:
+  name: ai-quant-turtle-strategy
+  version: "1.0.0"
+  updated_at: "2026-07-11"
+  task_id: TURTLE_DASHBOARD
+  title: 海龟交易法则（Donchian + ATR）
+  maintainer: 张利伟
+  references:
+    - "Curtis Faith, Way of the Turtle (2007)"
+    - "Welles Wilder, New Concepts in Technical Trading Systems (1978)"
+
+# -----------------------------------------------------------------------------
+# 一、策略概述
+# -----------------------------------------------------------------------------
+objectives:
+  primary: 实现经典海龟法则的可配置回测策略，供演示看板调用
+  principles:
+    - 趋势跟踪：价格突破 N 日通道高点做多（演示版仅做多，不做空）
+    - 波动定仓：用 ATR(N) 衡量风险，控制单笔止损与仓位
+    - 无未来函数：突破信号基于 shift(1) 的 Donchian 通道，position_lag=1 次日执行
+  deliverables:
+    - quant_backtest/strategies/turtle.py
+    - tests/test_turtle_strategy.py          # 可选，对齐 spec 示例
+    - data/backtest/turtle/{scenario_id}.json  # 看板 API 读取
+
+# -----------------------------------------------------------------------------
+# 二、策略变体（System 1 / System 2）
+# -----------------------------------------------------------------------------
+systems:
+  system_1:
+    label: 系统一（短周期）
+    description: 20 日突破入场，10 日反向突破离场；适合较快趋势
+    defaults:
+      entry_period: 20
+      exit_period: 10
+      atr_period: 20
+      stop_n_multiplier: 2.0
+
+  system_2:
+    label: 系统二（长周期）
+    description: 55 日突破入场，20 日反向突破离场；过滤更多假突破
+    defaults:
+      entry_period: 55
+      exit_period: 20
+      atr_period: 20
+      stop_n_multiplier: 2.0
+
+  custom:
+    label: 自定义
+    description: 用户在看板中自由调节各参数
+
+# -----------------------------------------------------------------------------
+# 三、核心算法
+# -----------------------------------------------------------------------------
+algorithm:
+  inputs:
+    required_columns: [date, open, high, low, close]
+    optional_columns: [volume]
+
+  indicators:
+    donchian_entry_high:
+      formula: "rolling_max(high, entry_period).shift(1)"
+      description: 入场通道上轨（不含当日，避免未来函数）
+
+    donchian_entry_low:
+      formula: "rolling_min(low, entry_period).shift(1)"
+      description: 入场通道下轨（做空信号，演示版可忽略）
+
+    donchian_exit_low:
+      formula: "rolling_min(low, exit_period).shift(1)"
+      description: 出场通道下轨（多头平仓）
+
+    donchian_exit_high:
+      formula: "rolling_max(high, exit_period).shift(1)"
+      description: 出场通道上轨（空头平仓，演示版可忽略）
+
+    tr:
+      formula: "max(high-low, |high-close_prev|, |low-close_prev|)"
+      description: 真实波幅 TR
+
+    atr_n:
+      formula: "Wilder_smooth(tr, atr_period)"
+      description: N 值，即 ATR(atr_period)，Wilder 平滑（alpha=1/period）
+      implementation_ref: TASK2/task02_indicator_lab/scripts/indicators.py#compute_atr
+
+  entry_rules:
+    long:
+      condition: "close > donchian_entry_high"
+      action: open_long_or_add_unit
+      notes: 收盘价突破 entry_period 日最高价（前一日通道）
+
+    short:
+      condition: "close < donchian_entry_low"
+      enabled: false              # 演示版关闭做空（A 股/教学场景）
+      action: open_short
+
+  exit_rules:
+    long_channel_exit:
+      condition: "close < donchian_exit_low"
+      action: close_all_long
+      priority: 1
+
+    long_stop_exit:
+      condition: "close < entry_price - stop_n_multiplier * atr_n_at_entry"
+      action: close_all_long
+      priority: 0                   # 止损优先于通道出场
+      notes: 2N 止损，entry 当日 ATR 锁定
+
+  position_sizing:
+    mode: risk_pct                  # risk_pct | fixed_fraction | full_capital
+    risk_pct_per_trade: 0.01        # 单笔风险占权益 1%（经典海龟）
+    unit_formula: |
+      dollar_volatility = atr_n * point_value   # 单股 point_value=1
+      unit_size = floor((equity * risk_pct) / dollar_volatility)
+      unit_size = max(unit_size, 0)
+    max_units: 4                    # 最多加仓 4 单元
+    pyramid_spacing_n: 0.5          # 每上涨 0.5N 加一单元（v1.1 启用）
+    enabled_in_v1: false            # v1 演示：全仓单单元，简化 UI
+
+  signal_columns:
+    - target_position             # 0~1 连续仓位（v1 为 0/1）
+    - buy_signal                  # 突破入场
+    - sell_signal                 # 通道/止损出场
+    - donchian_entry_high
+    - donchian_entry_low
+    - donchian_exit_low
+    - atr_n
+    - stop_price                  # 当前持仓止损线
+    - unit_count                  # 当前单元数（v1.1）
+
+# -----------------------------------------------------------------------------
+# 四、参数 Schema（看板表单 / API）
+# -----------------------------------------------------------------------------
+params_schema:
+  system:
+    type: enum
+    options: [system_1, system_2, custom]
+    default: system_1
+    description: 预设系统或自定义
+
+  entry_period:
+    type: int
+    default: 20
+    min: 5
+    max: 120
+    step: 1
+    label: 入场周期（日）
+    description: Donchian 突破窗口
+
+  exit_period:
+    type: int
+    default: 10
+    min: 3
+    max: 60
+    step: 1
+    label: 出场周期（日）
+    description: 反向突破平仓窗口
+
+  atr_period:
+    type: int
+    default: 20
+    min: 5
+    max: 60
+    step: 1
+    label: ATR 周期（N）
+    description: 波动率与止损基准
+
+  stop_n_multiplier:
+    type: float
+    default: 2.0
+    min: 0.5
+    max: 5.0
+    step: 0.5
+    label: 止损倍数（×N）
+    description: 入场价下方 stop_n × ATR 为止损
+
+  risk_pct_per_trade:
+    type: float
+    default: 0.01
+    min: 0.001
+    max: 0.05
+    step: 0.001
+    label: 单笔风险比例
+    description: 占权益比例，v1 全仓模式下仅展示不参与计算
+
+  enable_short:
+    type: bool
+    default: false
+    label: 允许做空
+    description: 演示版默认关闭
+
+  skip_rule_s1:
+    type: bool
+    default: false
+    label: 系统一跳过规则
+    description: 若上一笔 S1 盈利则跳过下一信号（v1.1）
+
+constraints:
+  - rule: entry_period > exit_period
+    message: 入场周期应大于出场周期（通道更宽）
+  - rule: atr_period >= 5
+    message: ATR 周期至少 5 日
+  - rule: stop_n_multiplier > 0
+    message: 止损倍数必须为正
+
+# -----------------------------------------------------------------------------
+# 五、回测引擎对接
+# -----------------------------------------------------------------------------
+backtest_integration:
+  class: quant_backtest.strategies.TurtleStrategy
+  extends: quant_backtest.strategy.Strategy
+  engine_config:
+    inherit_from: spec/backtest.spec.yaml#defaults.engine
+    overrides:
+      position_lag: 1
+      price_col: close
+      open_col: open
+      commission_rate: 0.0003
+      slippage_rate: 0.0005
+      initial_capital: 100000.0
+
+  min_warmup_bars: |
+    max(entry_period, exit_period, atr_period) + 5
+
+  execution:
+    entry: open                     # 信号日收盘后，次日开盘成交
+    exit: close
+    mark_to_market: close
+
+# -----------------------------------------------------------------------------
+# 六、绩效指标（继承并扩展 backtest.spec）
+# -----------------------------------------------------------------------------
+metrics:
+  inherit_from: spec/backtest.spec.yaml#metrics_definitions
+  additional:
+    win_rate_pct:
+      label: 胜率
+      formula: "winning_trades / total_trades"
+      unit: "%"
+      higher_is_better: true
+
+    profit_factor:
+      label: 盈亏比
+      formula: "gross_profit / abs(gross_loss)"
+      unit: ratio
+      higher_is_better: true
+
+    avg_holding_days:
+      label: 平均持仓天数
+      formula: "mean(exit_date - entry_date) per trade"
+      unit: 天
+
+    total_trades:
+      label: 总交易次数
+      source: trades table row count
+
+    max_consecutive_losses:
+      label: 最大连续亏损次数
+      higher_is_better: false
+
+# -----------------------------------------------------------------------------
+# 七、交易明细 Schema
+# -----------------------------------------------------------------------------
+trades_schema:
+  description: 每笔 round-trip 交易记录，供看板表格与图表标注
+  columns:
+    - name: trade_id
+      type: int
+    - name: entry_date
+      type: date
+    - name: entry_price
+      type: float
+    - name: exit_date
+      type: date
+      required: false              # 未平仓时为空
+    - name: exit_price
+      type: float
+      required: false
+    - name: exit_reason
+      type: enum
+      values: [channel, stop, end_of_backtest]
+    - name: holding_days
+      type: int
+    - name: return_pct
+      type: float
+      description: 单笔收益率 (%)
+    - name: pnl
+      type: float
+      description: 绝对盈亏（含手续费）
+
+# -----------------------------------------------------------------------------
+# 八、默认回测场景
+# -----------------------------------------------------------------------------
+scenarios:
+  primary:
+    scenario_id: turtle_smic_hk_s1
+    stock_id: smic_hk
+    strategy:
+      type: turtle
+      params:
+        system: system_1
+        entry_period: 20
+        exit_period: 10
+        atr_period: 20
+        stop_n_multiplier: 2.0
+
+  batches:
+    - batch_id: system_compare
+      description: 系统一 vs 系统二（中芯港股）
+      stock_id: smic_hk
+      runs:
+        - { scenario_id: turtle_s1, params: { system: system_1 } }
+        - { scenario_id: turtle_s2, params: { system: system_2 } }
+
+    - batch_id: cross_stock_s1
+      description: 四标的统一系统一回测
+      strategy: turtle
+      params:
+        system: system_1
+      stock_ids: [smic_hk, smic_a, byd, cyp]
+
+# -----------------------------------------------------------------------------
+# 九、参数扫描（可选）
+# -----------------------------------------------------------------------------
+param_scan:
+  enabled: false
+  stock_id: smic_hk
+  strategy: turtle
+  param_grid:
+    entry_period: [15, 20, 25, 30, 40, 55]
+    exit_period: [5, 10, 15, 20]
+    atr_period: [14, 20]
+  constraints:
+    - rule: entry_period > exit_period
+  rank_by: sharpe_ratio
+  top_n: 10
+
+# -----------------------------------------------------------------------------
+# 十、扩展（后续版本）
+# -----------------------------------------------------------------------------
+extensions:
+  - id: pyramiding
+    description: 0.5N 加仓，最多 4 单元
+    enabled: false
+    version: v1.1
+
+  - id: skip_rule
+    description: 系统一盈利后跳过下一突破信号
+    enabled: false
+    version: v1.1
+
+  - id: short_selling
+    description: 港股/期货做空通道
+    enabled: false
+    version: v1.2
+
+  - id: portfolio_turtle
+    description: 多标的组合海龟，统一风险预算
+    enabled: false
+    version: v2.0
